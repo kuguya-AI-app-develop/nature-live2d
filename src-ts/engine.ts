@@ -1,6 +1,12 @@
 import { MockEmotionAnalyzer } from "./analyzer.js";
 import { normalizeIntent } from "./intent.js";
 import { clampParams, mapIntentToParams } from "./mapper.js";
+import {
+  applyNaturalParameterMotion,
+  createNaturalMotionPlan,
+  stabilizeNaturalMotionKeyframes,
+  type NaturalMotionOptions,
+} from "./natural-motion.js";
 import { buildCharacterProfile } from "./profile.js";
 import { createResourceSetFromUrls } from "./resources.js";
 import { buildTimeline } from "./timeline.js";
@@ -30,6 +36,8 @@ export interface GenerateEmotionOptions {
   specialExpression?: SpecialExpressionName | null;
   durationMs?: number;
 }
+
+export interface GenerateNaturalTimelineOptions extends GenerateEmotionOptions, NaturalMotionOptions {}
 
 export class Live2DExpressionEngine {
   readonly profile: CharacterProfile;
@@ -113,5 +121,47 @@ export class Live2DExpressionEngine {
 
   async generateTimelineFromText(text: string): Promise<TimelineExpressionResult> {
     return this.generateTimelineFromIntent(await this.analyzer.analyze(text));
+  }
+
+  generateNaturalTimelineByEmotion(
+    emotion: EmotionName,
+    options: GenerateNaturalTimelineOptions = {},
+  ): TimelineExpressionResult {
+    return this.generateNaturalTimelineFromIntent({ emotion, ...options }, options);
+  }
+
+  generateNaturalTimelineFromIntent(
+    intentInput: EmotionIntent,
+    options: NaturalMotionOptions = {},
+  ): TimelineExpressionResult {
+    const plan = createNaturalMotionPlan(intentInput, options);
+    const warnings = new Set<string>();
+    const keyframes = plan.steps.map((step) => {
+      const result = this.generateFromIntent(step.intent);
+      result.warnings.forEach((warning) => warnings.add(warning));
+      const paramsWithMotion = applyNaturalParameterMotion(result.params, step, plan, options);
+      const clamped = clampParams(paramsWithMotion, this.profile);
+      clamped.warnings.forEach((warning) => warnings.add(warning));
+      return {
+        t: step.t,
+        phase: step.phase,
+        params: clamped.params,
+      };
+    });
+
+    return {
+      emotion: plan.intent.emotion,
+      intensity: plan.intent.intensity,
+      durationMs: plan.durationMs,
+      keyframes: stabilizeNaturalMotionKeyframes(keyframes, options),
+      warnings: [...warnings],
+    };
+  }
+
+  async generateNaturalTimelineFromText(
+    text: string,
+    options: NaturalMotionOptions = {},
+  ): Promise<TimelineExpressionResult> {
+    return this.generateNaturalTimelineFromIntent(await this.analyzer.analyze(text), options);
   }
 }

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nature Live2D Web Demo</title>
+    <script type="module" src="/demo/src/main.ts"></script>
+  </head>
+  <body>
+    <div id="app">
+      <aside class="control-panel">
+        <header class="panel-header">
+          <span>Nature Live2D</span>
+          <h1>Web Demo</h1>
+        </header>
+
+        <label class="field">
+          <span>Runtime</span>
+          <select id="runtime">
+            <option value="pixi-live2d-display">pixi-live2d-display</option>
+            <option value="auto">auto</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Dialogue cases</span>
+          <div id="case-list" class="case-list" aria-label="Dialogue cases"></div>
+        </label>
+
+        <label class="field">
+          <span>Conversation prompt</span>
+          <textarea id="summary" rows="6"></textarea>
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Intensity</span>
+            <input id="intensity" type="range" min="0" max="1" step="0.05" value="0.75" />
+          </label>
+          <label class="field">
+            <span>Duration</span>
+            <input id="duration" type="number" min="400" max="4000" step="100" value="1400" />
+          </label>
+        </div>
+
+        <div class="tuning-grid">
+          <label class="field">
+            <span>Stream weight</span>
+            <input id="stream-weight" type="range" min="0.2" max="0.9" step="0.05" value="0.52" />
+          </label>
+          <label class="field">
+            <span>Smoothing</span>
+            <input id="smoothing" type="range" min="120" max="900" step="20" value="420" />
+          </label>
+          <label class="field">
+            <span>Prompt bias</span>
+            <input id="prompt-bias" type="range" min="0" max="0.6" step="0.05" value="0.28" />
+          </label>
+          <label class="field">
+            <span>Final blend</span>
+            <input id="final-blend" type="range" min="0" max="1" step="0.05" value="0.55" />
+          </label>
+          <label class="field">
+            <span>Stability</span>
+            <input id="stability" type="range" min="0" max="1" step="0.05" value="0.82" />
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="play-text" type="button">Stream Reply</button>
+          <button id="play-natural" type="button">Natural Motion</button>
+          <button id="play-shy" type="button">Shy</button>
+          <button id="play-happy" type="button">Happy</button>
+        </div>
+
+        <section class="reply-card" aria-label="Assistant reply">
+          <span>Assistant reply</span>
+          <p id="assistant-reply">Waiting for a case.</p>
+        </section>
+
+        <section class="signal-card" aria-label="Stream signal">
+          <span>Stream signal</span>
+          <p id="stream-signal">Idle</p>
+        </section>
+
+        <section class="llm-card" aria-label="LLM evaluation">
+          <span>Final emotion calibration</span>
+          <p id="llm-summary">Waiting for a case.</p>
+        </section>
+
+        <dl class="stats">
+          <div>
+            <dt>Model</dt>
+            <dd id="model-name">Loading</dd>
+          </div>
+          <div>
+            <dt>Emotion</dt>
+            <dd id="emotion">Neutral</dd>
+          </div>
+          <div>
+            <dt>Params</dt>
+            <dd id="params">0</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd id="status">Booting</dd>
+          </div>
+        </dl>
+      </aside>
+
+      <main class="stage-shell" aria-label="Live2D preview">
+        <canvas id="live2d-canvas"></canvas>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,5 +1,10 @@
 import type { NormalizedEmotionIntent, TimelineExpressionResult, TimelineKeyframe } from "./types.js";
 
+export interface TimelineSampleOptions {
+  interpolate?: boolean;
+  easing?: boolean;
+}
+
 export function buildTimeline(options: {
   intent: NormalizedEmotionIntent;
   neutralParams: Record<string, number>;
@@ -32,15 +37,39 @@ export function buildTimeline(options: {
 export function sampleTimeline(
   timeline: TimelineExpressionResult,
   elapsedMs: number,
+  options: TimelineSampleOptions = {},
 ): Record<string, number> {
   if (timeline.keyframes.length === 0) return {};
   const sorted = [...timeline.keyframes].sort((a, b) => a.t - b.t);
-  let selected = sorted[0];
-  for (const keyframe of sorted) {
-    if (keyframe.t <= elapsedMs) selected = keyframe;
-    else break;
+  const timestamp = Math.max(0, elapsedMs);
+  if (timestamp <= sorted[0].t) return { ...sorted[0].params };
+  const last = sorted[sorted.length - 1];
+  if (timestamp >= last.t) return { ...last.params };
+
+  let previous = sorted[0];
+  let next = last;
+  for (let index = 1; index < sorted.length; index += 1) {
+    if (sorted[index].t >= timestamp) {
+      next = sorted[index];
+      break;
+    }
+    previous = sorted[index];
   }
-  return { ...selected.params };
+
+  if (options.interpolate === false || previous.t === next.t) {
+    return { ...previous.params };
+  }
+
+  const rawAmount = (timestamp - previous.t) / (next.t - previous.t);
+  const amount = options.easing === false ? rawAmount : smoothstep(rawAmount);
+  const params: Record<string, number> = {};
+  const ids = new Set([...Object.keys(previous.params), ...Object.keys(next.params)]);
+  for (const id of ids) {
+    const start = previous.params[id] ?? next.params[id] ?? 0;
+    const end = next.params[id] ?? previous.params[id] ?? 0;
+    params[id] = lerp(start, end, amount);
+  }
+  return params;
 }
 
 function dedupeKeyframes(keyframes: TimelineKeyframe[]): TimelineKeyframe[] {
@@ -51,3 +80,11 @@ function dedupeKeyframes(keyframes: TimelineKeyframe[]): TimelineKeyframe[] {
     .map(([, keyframe]) => keyframe);
 }
 
+function smoothstep(value: number): number {
+  const next = Math.max(0, Math.min(1, value));
+  return next * next * (3 - (2 * next));
+}
+
+function lerp(start: number, end: number, amount: number): number {
+  return start + (end - start) * Math.max(0, Math.min(1, amount));
+}

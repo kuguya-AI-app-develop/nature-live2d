@@ -110,9 +110,17 @@ export interface ExpressionResult {
   warnings: string[];
 }
 
+export type TimelinePhaseName =
+  | "neutral"
+  | "thinking"
+  | "anticipation"
+  | "reaction"
+  | "settle";
+
 export interface TimelineKeyframe {
   t: number;
   params: Record<string, number>;
+  phase?: TimelinePhaseName;
 }
 
 export interface TimelineExpressionResult {
@@ -128,4 +136,3 @@ export interface EmotionAnalyzer {
 }
 
 export type JsonObject = Record<string, unknown>;
-
