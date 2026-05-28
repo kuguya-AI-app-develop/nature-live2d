@@ -11,10 +11,10 @@ Implemented scope:
 - map emotion intents to whitelisted Live2D parameters
 - clamp outputs to safe ranges
 - expose a small engine API
+- analyze text with either a deterministic mock analyzer or an OpenAI-compatible chat completions endpoint
 
 Out of scope for this MVP:
 
-- real LLM calls
 - VTube Studio WebSocket control
 - moc3 parsing
 - timeline animation
@@ -32,6 +32,29 @@ print(result.model_dump_json(indent=2))
 For offline smoke tests, `generate_from_text(...)` uses a deterministic mock analyzer:
 
 ```python
+result = engine.generate_from_text("八千代有点害羞地笑了一下")
+```
+
+To use an OpenAI-compatible chat completions endpoint, create a `.env` from `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Set:
+
+```text
+LIVE2D_LLM_BASE_URL=https://api.openai.com/v1
+LIVE2D_LLM_MODEL=your-model
+LIVE2D_LLM_API_KEY=your-key
+```
+
+Then:
+
+```python
+from live2d_llm_expression import Live2DExpressionEngine
+
+engine = Live2DExpressionEngine.from_directory_with_env_analyzer("yachiyo")
 result = engine.generate_from_text("八千代有点害羞地笑了一下")
 ```
 

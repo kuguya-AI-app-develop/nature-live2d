@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
 
-from live2d_llm_expression.emotion.schema import EmotionIntent, EmotionName, SpecialExpressionName
-from live2d_llm_expression.llm.analyzer import MockEmotionAnalyzer
+from live2d_llm_expression.emotion.schema import (
+    EmotionIntent,
+    EmotionName,
+    SpecialExpressionName,
+)
+from live2d_llm_expression.llm.analyzer import (
+    EmotionAnalyzer,
+    MockEmotionAnalyzer,
+    OpenAICompatibleAnalyzer,
+)
 from live2d_llm_expression.mapper.rule_mapper import RuleBasedExpressionMapper
 from live2d_llm_expression.mapper.safety_clamp import clamp_params
 from live2d_llm_expression.profile.model_profile import CharacterProfile
 from live2d_llm_expression.profile.profile_builder import build_character_profile
 from live2d_llm_expression.runtime.output import ExpressionResult
 from live2d_llm_expression.scanner import scan_live2d_resources
-
-
-class EmotionAnalyzer(Protocol):
-    def analyze(self, text: str) -> EmotionIntent:
-        ...
 
 
 class Live2DExpressionEngine:
@@ -30,9 +32,21 @@ class Live2DExpressionEngine:
         self.analyzer = analyzer or MockEmotionAnalyzer()
 
     @classmethod
-    def from_directory(cls, root_dir: str | Path) -> "Live2DExpressionEngine":
+    def from_directory(
+        cls,
+        root_dir: str | Path,
+        *,
+        analyzer: EmotionAnalyzer | None = None,
+    ) -> "Live2DExpressionEngine":
         resources = scan_live2d_resources(root_dir)
-        return cls(build_character_profile(resources))
+        return cls(build_character_profile(resources), analyzer=analyzer)
+
+    @classmethod
+    def from_directory_with_env_analyzer(
+        cls,
+        root_dir: str | Path,
+    ) -> "Live2DExpressionEngine":
+        return cls.from_directory(root_dir, analyzer=OpenAICompatibleAnalyzer.from_env())
 
     def generate_by_emotion(
         self,

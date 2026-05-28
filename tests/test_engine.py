@@ -58,3 +58,15 @@ def test_engine_generates_from_text_with_mock_analyzer(yachiyo_dir):
     assert result.params["ParamEyeBallX"] == pytest.approx(0.25)
     assert result.params["ParamMouthForm"] == pytest.approx(0.35)
     assert result.warnings == []
+
+
+def test_engine_accepts_custom_text_analyzer(yachiyo_dir):
+    class FakeAnalyzer:
+        def analyze(self, text):
+            return EmotionIntent(emotion="angry", intensity=0.8)
+
+    engine = Live2DExpressionEngine.from_directory(yachiyo_dir, analyzer=FakeAnalyzer())
+    result = engine.generate_from_text("anything")
+
+    assert result.emotion == "angry"
+    assert result.params["ParamMouthForm"] < 0
