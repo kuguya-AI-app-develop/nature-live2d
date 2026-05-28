@@ -58,6 +58,35 @@ engine = Live2DExpressionEngine.from_directory_with_env_analyzer("yachiyo")
 result = engine.generate_from_text("八千代有点害羞地笑了一下")
 ```
 
+## HTTP Server
+
+Start the local API with the deterministic mock analyzer:
+
+```bash
+live2d-expression-server --model yachiyo --port 8765
+```
+
+Use the environment-configured LLM analyzer:
+
+```bash
+live2d-expression-server --model yachiyo --port 8765 --use-env-analyzer
+```
+
+Endpoints:
+
+- `GET /health`
+- `GET /profile`
+- `POST /emotion`
+- `POST /text`
+
+Example:
+
+```bash
+curl -X POST http://127.0.0.1:8765/emotion \
+  -H 'Content-Type: application/json' \
+  -d '{"emotion":"shy","intensity":0.7}'
+```
+
 ## Development
 
 ```bash

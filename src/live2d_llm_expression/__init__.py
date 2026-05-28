@@ -6,8 +6,10 @@ from live2d_llm_expression.llm import (
     OpenAICompatibleAnalyzer,
 )
 from live2d_llm_expression.runtime.output import ExpressionResult
+from live2d_llm_expression.server import create_app
 
 __all__ = [
+    "create_app",
     "EmotionIntent",
     "ExpressionResult",
     "LLMAnalyzerError",

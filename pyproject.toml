@@ -9,14 +9,20 @@ description = "Rule-first Live2D expression runtime for LLM-generated emotion in
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115",
     "pydantic>=2.0",
     "python-dotenv>=1.0",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "httpx>=0.27",
     "pytest>=8.0",
 ]
+
+[project.scripts]
+live2d-expression-server = "live2d_llm_expression.server.app:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
