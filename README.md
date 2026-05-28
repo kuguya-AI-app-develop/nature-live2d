@@ -12,12 +12,13 @@ Implemented scope:
 - clamp outputs to safe ranges
 - expose a small engine API
 - analyze text with either a deterministic mock analyzer or an OpenAI-compatible chat completions endpoint
+- generate simple expression timelines with neutral and target keyframes
 
 Out of scope for this MVP:
 
 - VTube Studio WebSocket control
 - moc3 parsing
-- timeline animation
+- advanced timeline easing and animation curves
 
 ## Example
 
@@ -78,6 +79,7 @@ Endpoints:
 - `GET /profile`
 - `POST /emotion`
 - `POST /text`
+- `POST /timeline`
 
 Example:
 
@@ -85,6 +87,14 @@ Example:
 curl -X POST http://127.0.0.1:8765/emotion \
   -H 'Content-Type: application/json' \
   -d '{"emotion":"shy","intensity":0.7}'
+```
+
+Timeline example:
+
+```bash
+curl -X POST http://127.0.0.1:8765/timeline \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"八千代有点害羞地笑了一下"}'
 ```
 
 ## Development

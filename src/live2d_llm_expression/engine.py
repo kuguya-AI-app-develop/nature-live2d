@@ -14,9 +14,10 @@ from live2d_llm_expression.llm.analyzer import (
 )
 from live2d_llm_expression.mapper.rule_mapper import RuleBasedExpressionMapper
 from live2d_llm_expression.mapper.safety_clamp import clamp_params
+from live2d_llm_expression.mapper.timeline_builder import build_timeline
 from live2d_llm_expression.profile.model_profile import CharacterProfile
 from live2d_llm_expression.profile.profile_builder import build_character_profile
-from live2d_llm_expression.runtime.output import ExpressionResult
+from live2d_llm_expression.runtime.output import ExpressionResult, TimelineExpressionResult
 from live2d_llm_expression.scanner import scan_live2d_resources
 
 
@@ -88,3 +89,50 @@ class Live2DExpressionEngine:
 
     def generate_from_text(self, text: str) -> ExpressionResult:
         return self.generate_from_intent(self.analyzer.analyze(text))
+
+    def generate_timeline_by_emotion(
+        self,
+        emotion: EmotionName,
+        *,
+        intensity: float = 0.5,
+        gaze: str | None = None,
+        head: str | None = None,
+        eyes: str | None = None,
+        brows: str | None = None,
+        mouth: str | None = None,
+        special_expression: SpecialExpressionName | None = None,
+        duration_ms: int = 1200,
+    ) -> TimelineExpressionResult:
+        intent = EmotionIntent(
+            emotion=emotion,
+            intensity=intensity,
+            gaze=gaze,
+            head=head,
+            eyes=eyes,
+            brows=brows,
+            mouth=mouth,
+            special_expression=special_expression,
+            duration_ms=duration_ms,
+        )
+        return self.generate_timeline_from_intent(intent)
+
+    def generate_timeline_from_intent(
+        self,
+        intent: EmotionIntent,
+    ) -> TimelineExpressionResult:
+        neutral_intent = EmotionIntent(
+            emotion="neutral",
+            intensity=1.0,
+            duration_ms=intent.duration_ms,
+        )
+        neutral_result = self.generate_from_intent(neutral_intent)
+        target_result = self.generate_from_intent(intent)
+        return build_timeline(
+            intent,
+            neutral_params=neutral_result.params,
+            target_params=target_result.params,
+            warnings=neutral_result.warnings + target_result.warnings,
+        )
+
+    def generate_timeline_from_text(self, text: str) -> TimelineExpressionResult:
+        return self.generate_timeline_from_intent(self.analyzer.analyze(text))

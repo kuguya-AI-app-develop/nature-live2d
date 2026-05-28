@@ -5,7 +5,11 @@ from live2d_llm_expression.llm import (
     MockEmotionAnalyzer,
     OpenAICompatibleAnalyzer,
 )
-from live2d_llm_expression.runtime.output import ExpressionResult
+from live2d_llm_expression.runtime.output import (
+    ExpressionResult,
+    TimelineExpressionResult,
+    TimelineKeyframe,
+)
 from live2d_llm_expression.server import create_app
 
 __all__ = [
@@ -16,4 +20,6 @@ __all__ = [
     "Live2DExpressionEngine",
     "MockEmotionAnalyzer",
     "OpenAICompatibleAnalyzer",
+    "TimelineExpressionResult",
+    "TimelineKeyframe",
 ]

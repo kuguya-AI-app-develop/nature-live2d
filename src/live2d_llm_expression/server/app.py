@@ -68,6 +68,11 @@ def create_app(
         result = app.state.engine.generate_from_text(request.text)
         return result.model_dump(mode="json")
 
+    @app.post("/timeline")
+    def timeline(request: TextRequest) -> dict:
+        result = app.state.engine.generate_timeline_from_text(request.text)
+        return result.model_dump(mode="json")
+
     return app
 
 
@@ -91,4 +96,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

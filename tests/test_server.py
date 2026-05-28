@@ -47,8 +47,18 @@ def test_server_text_endpoint_uses_default_mock_analyzer(client):
     assert payload["warnings"] == []
 
 
+def test_server_timeline_endpoint_uses_default_mock_analyzer(client):
+    response = client.post("/timeline", json={"text": "八千代有点害羞地笑了一下"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["emotion"] == "shy"
+    assert [keyframe["t"] for keyframe in payload["keyframes"]] == [0, 300, 900, 1200]
+    assert payload["keyframes"][1]["params"]["ParamEyeBallX"] == pytest.approx(0.25)
+    assert payload["warnings"] == []
+
+
 def test_server_rejects_invalid_emotion(client):
     response = client.post("/emotion", json={"emotion": "invalid", "intensity": 0.7})
 
     assert response.status_code == 422
-
