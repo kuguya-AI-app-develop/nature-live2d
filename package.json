@@ -1,0 +1,39 @@
+{
+  "name": "@kuguya-ai/nature-live2d",
+  "version": "0.1.0",
+  "description": "Live2D expression engine for mapping text and emotion intents to safe model parameters.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:ts": "vitest run",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "live2d",
+    "vtuber",
+    "expression",
+    "cubism"
+  ],
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

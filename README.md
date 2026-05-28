@@ -97,9 +97,48 @@ curl -X POST http://127.0.0.1:8765/timeline \
   -d '{"text":"八千代有点害羞地笑了一下"}'
 ```
 
+## TypeScript Package
+
+Web projects can install this repository as an npm package and use the engine directly. In a browser you must pass explicit resource URLs because browser code cannot list arbitrary folders:
+
+```ts
+import {
+  Live2DExpressionEngine,
+  applyParamsToLive2DModel,
+  sampleTimeline,
+} from "@kuguya-ai/nature-live2d";
+
+const engine = await Live2DExpressionEngine.fromUrls({
+  rootUrl: "/models/yachiyo/",
+  model3Path: "八千代辉夜姬.model3.json",
+  cdi3Path: "八千代辉夜姬.cdi3.json",
+  physics3Path: "八千代辉夜姬.physics3.json",
+  vtubePath: "八千代辉夜姬.vtube.json",
+  exp3Paths: ["眼泪.exp3.json", "泪珠.exp3.json", "笑咪咪.exp3.json", "眯眯眼.exp3.json"],
+});
+
+const result = engine.generateByEmotion("shy", { intensity: 0.7 });
+applyParamsToLive2DModel(cubismModel, result.params);
+
+const timeline = await engine.generateTimelineFromText("八千代有点害羞地笑了一下");
+applyParamsToLive2DModel(cubismModel, sampleTimeline(timeline, 300));
+```
+
+For Node or build-time validation, scan a local directory:
+
+```ts
+import { scanLive2DResources } from "@kuguya-ai/nature-live2d/node";
+
+const engine = await Live2DExpressionEngine.fromNodeDirectory("yachiyo");
+const resources = await scanLive2DResources("yachiyo");
+```
+
 ## Development
 
 ```bash
 python3 -m pip install -e ".[dev]"
 python3 -m pytest
+npm install
+npm run build
+npm run test:ts
 ```
