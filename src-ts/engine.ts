@@ -7,8 +7,10 @@ import {
   stabilizeNaturalMotionKeyframes,
   type NaturalMotionOptions,
 } from "./natural-motion.js";
+import { buildMotionCapability } from "./motion-capability.js";
+import { buildParameterManifest } from "./parameter-manifest.js";
 import { buildCharacterProfile } from "./profile.js";
-import { createResourceSetFromUrls } from "./resources.js";
+import { createResourceSetFromModel3Url, createResourceSetFromUrls } from "./resources.js";
 import { buildTimeline } from "./timeline.js";
 import type {
   CharacterProfile,
@@ -16,6 +18,9 @@ import type {
   EmotionIntent,
   EmotionName,
   ExpressionResult,
+  Live2DMotionCapability,
+  Live2DModel3Urls,
+  Live2DParameterManifest,
   Live2DResourceSet,
   Live2DResourceUrls,
   SpecialExpressionName,
@@ -48,6 +53,14 @@ export class Live2DExpressionEngine {
     this.analyzer = options.analyzer ?? new MockEmotionAnalyzer();
   }
 
+  getParameterManifest(): Live2DParameterManifest {
+    return buildParameterManifest(this.profile);
+  }
+
+  getMotionCapability(): Live2DMotionCapability {
+    return buildMotionCapability(this.profile);
+  }
+
   static async fromResourceSet(
     resources: Live2DResourceSet,
     options: Live2DExpressionEngineOptions & { fetcher?: typeof fetch } = {},
@@ -60,6 +73,16 @@ export class Live2DExpressionEngine {
     options: Live2DExpressionEngineOptions & { fetcher?: typeof fetch } = {},
   ): Promise<Live2DExpressionEngine> {
     return Live2DExpressionEngine.fromResourceSet(createResourceSetFromUrls(resources), options);
+  }
+
+  static async fromModel3Url(
+    resources: Live2DModel3Urls,
+    options: Live2DExpressionEngineOptions & { fetcher?: typeof fetch } = {},
+  ): Promise<Live2DExpressionEngine> {
+    return Live2DExpressionEngine.fromResourceSet(
+      await createResourceSetFromModel3Url(resources, options.fetcher),
+      options,
+    );
   }
 
   static async fromNodeDirectory(
@@ -85,9 +108,10 @@ export class Live2DExpressionEngine {
 
   generateFromIntent(intentInput: EmotionIntent): ExpressionResult {
     const intent = normalizeIntent(intentInput);
-    const { params, warnings } = clampParams(mapIntentToParams(intent), this.profile);
+    const { params, warnings } = clampParams(mapIntentToParams(intent, this.profile), this.profile);
     return {
       emotion: intent.emotion,
+      tone: intent.tone,
       intensity: intent.intensity,
       durationMs: intent.durationMs,
       params,
@@ -134,12 +158,16 @@ export class Live2DExpressionEngine {
     intentInput: EmotionIntent,
     options: NaturalMotionOptions = {},
   ): TimelineExpressionResult {
-    const plan = createNaturalMotionPlan(intentInput, options);
+    const motionOptions = {
+      ...options,
+      motionCapability: options.motionCapability ?? this.getMotionCapability(),
+    };
+    const plan = createNaturalMotionPlan(intentInput, motionOptions);
     const warnings = new Set<string>();
     const keyframes = plan.steps.map((step) => {
       const result = this.generateFromIntent(step.intent);
       result.warnings.forEach((warning) => warnings.add(warning));
-      const paramsWithMotion = applyNaturalParameterMotion(result.params, step, plan, options);
+      const paramsWithMotion = applyNaturalParameterMotion(result.params, step, plan, motionOptions);
       const clamped = clampParams(paramsWithMotion, this.profile);
       clamped.warnings.forEach((warning) => warnings.add(warning));
       return {
@@ -151,9 +179,10 @@ export class Live2DExpressionEngine {
 
     return {
       emotion: plan.intent.emotion,
+      tone: plan.intent.tone,
       intensity: plan.intent.intensity,
       durationMs: plan.durationMs,
-      keyframes: stabilizeNaturalMotionKeyframes(keyframes, options),
+      keyframes: stabilizeNaturalMotionKeyframes(keyframes, motionOptions),
       warnings: [...warnings],
     };
   }

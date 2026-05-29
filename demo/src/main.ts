@@ -1,20 +1,27 @@
 import './styles.css';
 
 import {
+  createLive2DRealtimeMotionDirector,
+  type EmotionAnalyzer,
   type EmotionIntent,
+  type EmotionStreamAnalyzer,
   Live2DExpressionEngine,
-  Live2DExpressionOrchestrator,
-  Live2DStreamingExpressionController,
+  type Live2DMotionCapability,
   playTimelineOnLive2DModel,
-  type EmotionSignal,
-  type Live2DRuntimeKind,
   type Live2DParameterTarget,
+  type Live2DRealtimeMotionDirector,
+  type Live2DRuntimeKind,
+  type RealtimeMotionFrameMeta,
   type TimelineExpressionResult,
 } from '../../src-ts/index.ts';
 
 type PixiApplication = {
   renderer: { resize: (width: number, height: number) => void };
   stage: { addChild: (child: unknown) => void };
+  ticker?: {
+    add: (callback: () => void) => void;
+    remove: (callback: () => void) => void;
+  };
 };
 
 type PixiLive2DModel = Live2DParameterTarget & {
@@ -37,14 +44,15 @@ type DemoStatus = {
   emotion: string;
   keyframes: number;
   parameterCount: number;
+  capabilityScore?: number;
+  capabilityFeatures?: string[];
   llmSummary?: string;
   error: string;
 };
 
-type DialogueCase = {
-  id: string;
-  label: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+type ConversationMessage = {
+  role: 'user' | 'assistant';
+  content: string;
 };
 
 type AnalyzeResponse = {
@@ -58,6 +66,11 @@ type AnalyzeResponse = {
 type ChatStreamEvent =
   | { type: 'delta'; delta: string }
   | { type: 'finish'; finishReason: string }
+  | { type: 'done' }
+  | { type: 'error'; error: string };
+
+type EmotionStreamEvent =
+  | { type: 'intent'; intent: EmotionIntent & { summary?: string }; summary?: string }
   | { type: 'done' }
   | { type: 'error'; error: string };
 
@@ -80,16 +93,17 @@ const RUNTIME_SCRIPTS = [
 const canvas = getElement<HTMLCanvasElement>('live2d-canvas');
 const stageShell = document.querySelector<HTMLElement>('.stage-shell');
 const runtimeInput = getElement<HTMLSelectElement>('runtime');
-const summaryInput = getElement<HTMLTextAreaElement>('summary');
-const caseList = getElement<HTMLElement>('case-list');
+const chatLog = getElement<HTMLElement>('chat-log');
+const chatForm = getElement<HTMLFormElement>('chat-form');
+const chatInput = getElement<HTMLTextAreaElement>('chat-input');
 const intensityInput = getElement<HTMLInputElement>('intensity');
 const durationInput = getElement<HTMLInputElement>('duration');
 const streamWeightInput = getElement<HTMLInputElement>('stream-weight');
 const smoothingInput = getElement<HTMLInputElement>('smoothing');
-const promptBiasInput = getElement<HTMLInputElement>('prompt-bias');
-const finalBlendInput = getElement<HTMLInputElement>('final-blend');
 const stabilityInput = getElement<HTMLInputElement>('stability');
+const expressivenessInput = getElement<HTMLInputElement>('expressiveness');
 const modelName = getElement<HTMLElement>('model-name');
+const capabilityOutput = getElement<HTMLElement>('capability');
 const emotionOutput = getElement<HTMLElement>('emotion');
 const paramsOutput = getElement<HTMLElement>('params');
 const statusOutput = getElement<HTMLElement>('status');
@@ -97,53 +111,17 @@ const llmSummaryOutput = getElement<HTMLElement>('llm-summary');
 const assistantReplyOutput = getElement<HTMLElement>('assistant-reply');
 const streamSignalOutput = getElement<HTMLElement>('stream-signal');
 
-const CASES: DialogueCase[] = [
-  {
-    id: 'shy-praise',
-    label: 'Praise',
-    messages: [
-      { role: 'user', content: '刚才那段分析帮了大忙，你真的很可靠。' },
-    ],
-  },
-  {
-    id: 'sad-recovery',
-    label: 'Recovery',
-    messages: [
-      { role: 'user', content: '计划又失败了，今天感觉白忙了一整天。' },
-    ],
-  },
-  {
-    id: 'surprise-success',
-    label: 'Surprise',
-    messages: [
-      { role: 'user', content: '居然一次跑通了，连我都没想到。' },
-    ],
-  },
-  {
-    id: 'teasing',
-    label: 'Teasing',
-    messages: [
-      { role: 'user', content: '你刚才是不是故意逗我？' },
-    ],
-  },
-  {
-    id: 'panic',
-    label: 'Panic',
-    messages: [
-      { role: 'user', content: '生产环境突然进不去了，用户都在报错。' },
-    ],
-  },
-];
-
 let engine: Live2DExpressionEngine;
+let motionCapability: Live2DMotionCapability | null = null;
 let app: PixiApplication;
 let model: PixiLive2DModel;
 let stopPlayback: (() => void) | null = null;
-let streamController: Live2DStreamingExpressionController | null = null;
-let activeCase = CASES[0];
-let expressionOrchestrator: Live2DExpressionOrchestrator | null = null;
+let realtimeDirector: Live2DRealtimeMotionDirector | null = null;
+let realtimeConfigKey = '';
 let playbackSerial = 0;
-let sustainTimer = 0;
+let chatHistory: ConversationMessage[] = [];
+let nextTickerFrameId = 1;
+const tickerFrames = new Map<number, () => void>();
 
 void boot();
 
@@ -160,14 +138,16 @@ async function boot(): Promise<void> {
     engine = await Live2DExpressionEngine.fromUrls(RESOURCE_URLS, {
       analyzer: {
         analyze: async (text) => {
-          const result = await analyzeWithLlm(parseTextareaMessages(text), text);
+          const result = await analyzeWithLlm(parseMessagesFromText(text), text);
           return softenFinalIntent(result.intent || { emotion: 'neutral' });
         },
       },
     });
+    motionCapability = engine.getMotionCapability();
     modelName.textContent = engine.profile.characterName || 'Live2D model';
+    capabilityOutput.textContent = formatCapability(motionCapability);
     bindControls();
-    selectCase(activeCase.id);
+    renderChatLog();
     setStatus('Ready');
     setDemoStatus({ ready: true, runtime: selectedRuntime(), emotion: 'neutral', keyframes: 0, parameterCount: 0, error: '' });
   } catch (error) {
@@ -178,112 +158,91 @@ async function boot(): Promise<void> {
 }
 
 function bindControls(): void {
-  caseList.replaceChildren(...CASES.map((item) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'case-button';
-    button.textContent = item.label;
-    button.addEventListener('click', () => {
-      selectCase(item.id);
-      void playText();
-    });
-    return button;
-  }));
-  getElement<HTMLButtonElement>('play-text').addEventListener('click', () => void playText());
-  getElement<HTMLButtonElement>('play-natural').addEventListener('click', () => void playNaturalMotion());
+  chatForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void submitChatMessage();
+  });
+  chatInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    void submitChatMessage();
+  });
+  getElement<HTMLButtonElement>('send-message').addEventListener('click', (event) => {
+    event.preventDefault();
+    void submitChatMessage();
+  });
+  getElement<HTMLButtonElement>('clear-chat').addEventListener('click', clearConversation);
   getElement<HTMLButtonElement>('play-shy').addEventListener('click', () => playEmotion('shy'));
   getElement<HTMLButtonElement>('play-happy').addEventListener('click', () => playEmotion('happy'));
-  runtimeInput.addEventListener('change', () => void playText());
+  getElement<HTMLButtonElement>('play-proud').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'proud', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-excited').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'excited', eyes: 'wide', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-grateful').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'grateful', eyes: 'soft', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-playful').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'playful', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-amused').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'amused', eyes: 'soft', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-skeptical').addEventListener('click', () => playLayeredEmotion({ emotion: 'confused', tone: 'skeptical', brows: 'worried', mouth: 'pout' }));
+  getElement<HTMLButtonElement>('play-reassuring').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'reassuring', brows: 'worried' }));
+  getElement<HTMLButtonElement>('play-focused').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'focused', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-frustrated').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'frustrated', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-startled').addEventListener('click', () => playLayeredEmotion({ emotion: 'surprised', tone: 'startled', eyes: 'wide', mouth: 'open' }));
+  getElement<HTMLButtonElement>('play-nervous').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'nervous', eyes: 'wide', mouth: 'open' }));
 }
 
-async function playNaturalMotion(): Promise<void> {
-  const runId = ++playbackSerial;
-  setBusy(true);
-  stopSustainLoop();
-  streamController?.stop();
-  stopPlayback?.();
-  expressionOrchestrator?.reset();
-  assistantReplyOutput.textContent = summaryInput.value;
-  streamSignalOutput.textContent = 'Natural timeline';
-  llmSummaryOutput.textContent = 'Generating natural motion from text.';
-  setStatus('Analyzing natural motion');
-
-  try {
-    const timeline = await engine.generateNaturalTimelineFromText(summaryInput.value, {
-      durationMs: selectedDurationMs(),
-      frameIntervalMs: 120,
-      liveliness: selectedIntensity(),
-      stability: selectedStability(),
-    });
-    if (runId !== playbackSerial) return;
-    streamSignalOutput.textContent = formatTimelinePhases(timeline);
-    playTimeline(timeline, `natural · ${timeline.keyframes.length} keyframes`);
-  } catch (error) {
-    if (runId !== playbackSerial) return;
-    const message = error instanceof Error ? error.message : String(error || 'unknown error');
-    setStatus(message);
-    llmSummaryOutput.textContent = message;
-    setDemoStatus({
-      ready: true,
-      runtime: selectedRuntime(),
-      emotion: emotionOutput.textContent || '',
-      keyframes: 0,
-      parameterCount: 0,
-      llmSummary: message,
-      error: message,
-    });
-  } finally {
-    if (runId === playbackSerial) setBusy(false);
-  }
+async function submitChatMessage(): Promise<void> {
+  const content = chatInput.value.trim();
+  if (!content) return;
+  const messages = [...chatHistory, { role: 'user' as const, content }];
+  chatHistory = messages;
+  chatInput.value = '';
+  renderChatLog();
+  await runAssistantTurn(messages);
 }
 
-async function playText(): Promise<void> {
+async function runAssistantTurn(messages: ConversationMessage[]): Promise<void> {
   const runId = ++playbackSerial;
   setBusy(true);
   setStatus('Starting stream');
   assistantReplyOutput.textContent = '';
   streamSignalOutput.textContent = 'Starting';
-  llmSummaryOutput.textContent = 'Waiting for final calibration.';
-  stopSustainLoop();
-  stopPlayback?.();
-  const controller = startStreamingPreview();
-  const orchestrator = expressionOrchestrator;
-  if (!orchestrator) throw new Error('Expression orchestrator failed to initialize');
-  const messages = parseTextareaMessages(summaryInput.value);
-  let assistantText = '';
-  let lastPreviewAt = 0;
-  const pushPreview = (force = false) => {
-    const now = performance.now();
-    const shouldPush = force || now - lastPreviewAt >= 140 || /[，。！？!?]$/.test(assistantText.trim());
-    if (!shouldPush) return;
-    lastPreviewAt = now;
-    updateStreamingPreview(controller, messages, assistantText, force);
-  };
+  llmSummaryOutput.textContent = 'Realtime director is waiting for assistant tokens.';
 
+  const director = startRealtimeMotion(messages);
+  let assistantText = '';
   let streamCompleted = false;
+  const assistantIndex = chatHistory.length;
+  chatHistory = [...chatHistory, { role: 'assistant', content: '' }];
+  renderChatLog();
+
   try {
-    pushPreview(true);
-    for await (const event of streamAssistantReply(messages)) {
+    for await (const event of streamAssistantReply(chatMessagesForLlm(messages))) {
       if (runId !== playbackSerial) return;
       if (event.type === 'delta') {
         assistantText += event.delta;
+        chatHistory[assistantIndex] = { role: 'assistant', content: assistantText };
         assistantReplyOutput.textContent = assistantText;
-        pushPreview(false);
+        renderChatLog();
+        const meta = director.pushAssistantDelta(event.delta);
+        if (meta) updateRealtimeMeta(meta);
       }
       if (event.type === 'error') throw new Error(event.error);
     }
 
     if (!assistantText.trim()) throw new Error('LLM stream returned no assistant text');
-    pushPreview(true);
     streamCompleted = true;
+    director.finishAssistantText();
     setBusy(false);
-    setStatus('Calibrating');
-    llmSummaryOutput.textContent = 'Final calibration is running in the background.';
-    void calibrateFinalIntent(runId, orchestrator, messages, assistantText);
+    setStatus('Settling');
+    llmSummaryOutput.textContent = director.lastMeta?.semanticPending
+      ? 'Semantic calibration is running in the background.'
+      : 'Stream completed.';
+    window.setTimeout(() => {
+      if (runId === playbackSerial) setStatus('Ready');
+    }, selectedDurationMs() + 80);
   } catch (error) {
     if (runId !== playbackSerial) return;
     const message = error instanceof Error ? error.message : String(error || 'unknown error');
-    stopSustainLoop();
+    if (realtimeDirector === director) director.stop();
+    chatHistory[assistantIndex] = { role: 'assistant', content: `Error: ${message}` };
+    renderChatLog();
     setStatus(message);
     llmSummaryOutput.textContent = message;
     setDemoStatus({
@@ -300,49 +259,224 @@ async function playText(): Promise<void> {
   }
 }
 
-async function calibrateFinalIntent(
-  runId: number,
-  orchestrator: Live2DExpressionOrchestrator,
-  messages: DialogueCase['messages'],
-  assistantText: string,
-): Promise<void> {
-  startSustainLoop(runId, orchestrator);
-  try {
-    const finalMessages: DialogueCase['messages'] = [...messages, { role: 'assistant', content: assistantText }];
-    const result = await analyzeWithLlm(finalMessages, formatMessages(finalMessages));
-    if (runId !== playbackSerial) return;
-    stopSustainLoop();
-    const intent = softenFinalIntent(result.intent || { emotion: 'neutral' });
-    const { result: expression, signal } = orchestrator.pushFinalIntent(intent, { amount: selectedFinalBlend() });
-    updateStreamingStatus(expression, finalCalibrationSummary(result, signal.intent));
-    streamSignalOutput.textContent = formatPreviewSignal(signal);
-    window.setTimeout(() => {
-      if (runId === playbackSerial) setStatus('Ready');
-    }, selectedDurationMs() + 80);
-  } catch (error) {
-    if (runId !== playbackSerial) return;
-    stopSustainLoop();
-    const message = error instanceof Error ? error.message : String(error || 'unknown error');
-    llmSummaryOutput.textContent = `Final calibration failed: ${message}`;
-    setStatus('Ready');
+function startRealtimeMotion(messages: ConversationMessage[]): Live2DRealtimeMotionDirector {
+  stopPlayback?.();
+  stopPlayback = null;
+
+  const configKey = selectedRealtimeConfigKey();
+  if (!realtimeDirector || realtimeConfigKey !== configKey) {
+    stopRealtimeDirector();
+    realtimeDirector = createRealtimeDirector();
+    realtimeConfigKey = configKey;
   }
+
+  const motionMessages = motionContext(messages);
+  realtimeDirector.startTurn({ promptText: formatMessages(motionMessages) });
+  return realtimeDirector;
+}
+
+function createRealtimeDirector(): Live2DRealtimeMotionDirector {
+  let lastUiAt = 0;
+  return createLive2DRealtimeMotionDirector({
+    engine,
+    model,
+    runtime: selectedRuntime(),
+    weight: selectedStreamWeight(),
+    smoothingMs: selectedSmoothingMs(),
+    stability: selectedStability(),
+    expressiveness: selectedExpressiveness(),
+    transitionMs: Math.round(clamp(selectedDurationMs() * 0.42, 360, 760)),
+    semanticAnalyzer: createDemoSemanticAnalyzer(),
+    semanticIntervalMs: 750,
+    requestFrame: requestPixiFrame,
+    cancelFrame: cancelPixiFrame,
+    onFrame: (params, meta) => {
+      const now = performance.now();
+      if (now - lastUiAt < 120 && meta.source !== 'semantic' && meta.phase !== 'thinking') return;
+      lastUiAt = now;
+      updateRealtimeFrameStatus(params, meta);
+    },
+  });
+}
+
+function createDemoSemanticAnalyzer(): EmotionAnalyzer & EmotionStreamAnalyzer {
+  return {
+    async analyze(text) {
+      const data = await analyzeWithLlm([], text);
+      if (!data.intent) throw new Error('LLM analyzer returned no emotion intent');
+      return softenRealtimeSemanticIntent(data.intent);
+    },
+    async *stream(text) {
+      const messages = parseMessagesFromText(text);
+      let emitted = false;
+      for await (const event of streamEmotionIntents(chatMessagesForLlm(messages))) {
+        if (event.type === 'intent') {
+          emitted = true;
+          yield { intent: softenStreamIntent(event.intent), summary: event.summary || event.intent.summary || '' };
+        }
+        if (event.type === 'error') throw new Error(event.error);
+      }
+      if (!emitted) {
+        const data = await analyzeWithLlm(messages, text);
+        if (data.intent) yield { intent: softenRealtimeSemanticIntent(data.intent), summary: data.summary || '' };
+      }
+    },
+  };
+}
+
+function stopRealtimeDirector(): void {
+  realtimeDirector?.stop();
+  realtimeDirector = null;
+  realtimeConfigKey = '';
+  tickerFrames.forEach((callback) => app?.ticker?.remove(callback));
+  tickerFrames.clear();
+}
+
+function clearConversation(): void {
+  playbackSerial += 1;
+  stopRealtimeDirector();
+  stopPlayback?.();
+  stopPlayback = null;
+  chatHistory = [];
+  chatInput.value = '';
+  renderChatLog();
+  assistantReplyOutput.textContent = 'Waiting for a message.';
+  streamSignalOutput.textContent = 'Idle';
+  llmSummaryOutput.textContent = 'Waiting for a message.';
+  setBusy(false);
+  setStatus('Ready');
+  setDemoStatus({ ready: true, runtime: selectedRuntime(), emotion: emotionOutput.textContent || 'neutral', keyframes: 0, parameterCount: Number(paramsOutput.textContent || 0), error: '' });
+}
+
+function renderChatLog(): void {
+  chatLog.replaceChildren();
+  if (!chatHistory.length) {
+    const empty = document.createElement('p');
+    empty.className = 'chat-empty';
+    empty.textContent = '输入任意一句话开始真实对话。Live2D 会在回复流式输出时同步反应。';
+    chatLog.append(empty);
+    return;
+  }
+
+  for (const message of chatHistory) {
+    const row = document.createElement('article');
+    row.className = `chat-message ${message.role}`;
+    const role = document.createElement('span');
+    role.className = 'role';
+    role.textContent = message.role === 'user' ? 'You' : 'Yachiyo';
+    const content = document.createElement('p');
+    content.textContent = message.content || '...';
+    row.append(role, content);
+    chatLog.append(row);
+  }
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function updateRealtimeFrameStatus(params: Record<string, number>, meta: RealtimeMotionFrameMeta): void {
+  const parameterCount = Object.keys(params).length;
+  emotionOutput.textContent = meta.emotion;
+  paramsOutput.textContent = String(parameterCount);
+  updateRealtimeMeta(meta, parameterCount);
+}
+
+function updateRealtimeMeta(meta: RealtimeMotionFrameMeta, parameterCount = Number(paramsOutput.textContent || 0)): void {
+  const summary = formatRealtimeSummary(meta);
+  streamSignalOutput.textContent = formatRealtimeSignal(meta);
+  llmSummaryOutput.textContent = summary;
+  setStatus(formatRealtimeStatus(meta));
+  setDemoStatus({
+    ready: true,
+    runtime: selectedRuntime(),
+    emotion: meta.emotion,
+    keyframes: 0,
+    parameterCount,
+    llmSummary: summary,
+    error: '',
+  });
+}
+
+function formatRealtimeSignal(meta: RealtimeMotionFrameMeta): string {
+  const confidence = Math.round(meta.confidence * 100);
+  const tone = meta.tone ? `/${meta.tone}` : '';
+  const preset = meta.presetId ? ` · preset ${meta.presetId}` : '';
+  const layerText = meta.layers
+    ? ` · layers face ${formatLayer(meta.layers.face)} speech ${formatLayer(meta.layers.speech)} accent ${formatLayer(meta.layers.accent)}`
+    : '';
+  const local = meta.localEmotion ? ` · local ${meta.localEmotion}${meta.localPresetId ? `/${meta.localPresetId}` : ''}` : '';
+  const semantic = meta.semanticEmotion
+    ? ` · semantic ${meta.semanticEmotion}${meta.semanticPresetId ? `/${meta.semanticPresetId}` : ''}`
+    : meta.semanticPending
+      ? ' · semantic pending'
+      : '';
+  return `${meta.phase} · ${meta.source} · ${meta.emotion}${tone}${preset} · conf ${confidence}%${layerText}${local}${semantic}`;
+}
+
+function formatLayer(value: number): string {
+  return value.toFixed(2);
+}
+
+function formatRealtimeSummary(meta: RealtimeMotionFrameMeta): string {
+  if (meta.semanticPending) return 'Realtime local motion is active; semantic calibration is pending.';
+  if (meta.semanticEmotion && meta.semanticEmotion === meta.emotion) {
+    return `Streamed semantic emotion blended into ${meta.emotion}.`;
+  }
+  if (meta.semanticEmotion) return `Semantic ${meta.semanticEmotion} observed; holding ${meta.emotion}.`;
+  if (meta.localEmotion && meta.localEmotion !== 'neutral') return `Local streaming signal is driving ${meta.localEmotion}.`;
+  return 'Base motion is active.';
+}
+
+function formatRealtimeStatus(meta: RealtimeMotionFrameMeta): string {
+  if (meta.semanticPending) return 'Calibrating';
+  if (meta.phase === 'thinking') return 'LLM thinking';
+  if (meta.phase === 'streaming' || meta.phase === 'reacting') return 'LLM streaming';
+  if (meta.phase === 'settling') return 'Ready';
+  return 'Calibrating';
+}
+
+function chatMessagesForLlm(messages: ConversationMessage[]): ConversationMessage[] {
+  return messages.slice(-12);
+}
+
+function motionContext(messages: ConversationMessage[]): ConversationMessage[] {
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+  return latestUserMessage ? [latestUserMessage] : messages.slice(-1);
+}
+
+function selectedRealtimeConfigKey(): string {
+  return [
+    selectedRuntime(),
+    selectedStreamWeight(),
+    selectedSmoothingMs(),
+    selectedStability(),
+    selectedExpressiveness(),
+    selectedDurationMs(),
+  ].join(':');
 }
 
 function playEmotion(emotion: 'happy' | 'shy'): void {
+  playLayeredEmotion({ emotion });
+}
+
+function playLayeredEmotion(intent: EmotionIntent): void {
   playbackSerial += 1;
-  stopSustainLoop();
+  stopRealtimeDirector();
   setBusy(false);
-  expressionOrchestrator?.reset();
-  streamController?.stop();
-  playTimeline(engine.generateTimelineByEmotion(emotion, {
+  const toneDuration = intent.tone === 'reassuring' ? selectedDurationMs() + 300 : selectedDurationMs();
+  playTimeline(engine.generateNaturalTimelineFromIntent({
+    ...intent,
     durationMs: selectedDurationMs(),
     intensity: selectedIntensity(),
+  }, {
+    durationMs: toneDuration,
+    frameIntervalMs: 120,
+    liveliness: 0.72,
+    stability: selectedStability(),
+    expressiveness: selectedExpressiveness(),
   }));
 }
 
 function playTimeline(timeline: TimelineExpressionResult, llmSummary = ''): void {
-  stopSustainLoop();
-  streamController?.stop();
+  stopRealtimeDirector();
   stopPlayback?.();
   const runtime = selectedRuntime();
   stopPlayback = playTimelineOnLive2DModel(model, timeline, { runtime, weight: 0.92 }).stop;
@@ -369,135 +503,30 @@ function updateTimelineStatus(timeline: TimelineExpressionResult, llmSummary = '
   }, timeline.durationMs + 80);
 }
 
-function formatTimelinePhases(timeline: TimelineExpressionResult): string {
-  const phases = Array.from(new Set(timeline.keyframes.map((keyframe) => keyframe.phase).filter(Boolean)));
-  return phases.length
-    ? `${timeline.emotion} · ${timeline.keyframes.length} keyframes · ${phases.join(' > ')}`
-    : `${timeline.emotion} · ${timeline.keyframes.length} keyframes`;
-}
-
-function startStreamingPreview(): Live2DStreamingExpressionController {
-  stopSustainLoop();
-  streamController?.stop();
-  streamController = new Live2DStreamingExpressionController({
-    engine,
-    model,
-    runtime: selectedRuntime(),
-    weight: selectedStreamWeight(),
-    smoothingMs: selectedSmoothingMs(),
-    minUpdateMs: 110,
-  });
-  streamController.start();
-  expressionOrchestrator = new Live2DExpressionOrchestrator({
-    target: streamController,
-    estimatorOptions: {
-      baseIntensity: selectedIntensity(),
-      promptBias: selectedPromptBias(),
-      durationMs: selectedDurationMs(),
-    },
-    stabilizerOptions: {
-      holdMs: 520,
-      neutralHoldMs: 900,
-    },
-    finalBlend: selectedFinalBlend(),
-  });
-  return streamController;
-}
-
-function startSustainLoop(runId: number, orchestrator: Live2DExpressionOrchestrator): void {
-  stopSustainLoop();
-  const intervalMs = Math.round(clamp(selectedDurationMs() * 0.72, 650, 1600));
-  const sustain = () => {
-    if (runId !== playbackSerial) {
-      stopSustainLoop();
-      return;
-    }
-    const orchestration = orchestrator.pushSustain({
-      durationMs: selectedDurationMs(),
-      intensityAmplitude: 0.045,
-      now: () => performance.now(),
-    });
-    if (!orchestration) return;
-    const { result, signal } = orchestration;
-    streamSignalOutput.textContent = formatPreviewSignal(signal);
-    updateStreamingStatus(result, `sustain · ${result.emotion} · waiting for final calibration`);
-    setStatus('Calibrating');
-  };
-  sustain();
-  sustainTimer = window.setInterval(sustain, intervalMs);
-}
-
-function stopSustainLoop(): void {
-  if (!sustainTimer) return;
-  window.clearInterval(sustainTimer);
-  sustainTimer = 0;
-}
-
-function updateStreamingPreview(
-  controller: Live2DStreamingExpressionController,
-  messages: DialogueCase['messages'],
-  assistantText: string,
-  force = false,
-): void {
-  const orchestration = expressionOrchestrator?.pushStreamText({
-    promptText: formatMessages(messages),
-    replyText: assistantText,
-    timestampMs: performance.now(),
-  });
-  if (!orchestration) return;
-  const { result, signal } = orchestration;
-  streamSignalOutput.textContent = formatPreviewSignal(signal);
-  updateStreamingStatus(
-    result,
-    assistantText
-      ? `stream · ${result.emotion}${force ? ' · checkpoint' : ''}`
-      : `prompt · ${result.emotion} · warmup`,
-  );
-  setStatus(assistantText ? 'LLM streaming' : 'LLM thinking');
-}
-
-function updateStreamingStatus(result: ReturnType<Live2DStreamingExpressionController['pushIntent']>, summary = ''): void {
-  const timeline = engine.generateTimelineFromIntent(result.sourceIntent);
-  const parameterCount = countTimelineParameters(timeline);
-  emotionOutput.textContent = result.emotion;
-  paramsOutput.textContent = String(parameterCount);
-  if (summary) llmSummaryOutput.textContent = summary;
-  setDemoStatus({
-    ready: true,
-    runtime: selectedRuntime(),
-    emotion: result.emotion,
-    keyframes: timeline.keyframes.length,
-    parameterCount,
-    llmSummary: summary,
-    error: '',
-  });
-}
-
-function formatPreviewSignal(signal: EmotionSignal): string {
-  const confidence = Math.round(signal.confidence * 100);
-  const held = signal.held ? ' · hold' : '';
-  return `${signal.source} · ${signal.intent.emotion} · ${confidence}%${held}`;
-}
-
 function softenFinalIntent(intent: EmotionIntent & { summary?: string } = { emotion: 'neutral' }): EmotionIntent & { summary?: string } {
   return {
     ...intent,
-    intensity: clamp((intent.intensity ?? selectedIntensity()) * 0.88, 0.22, 0.82),
+    intensity: clamp((intent.intensity ?? selectedIntensity()) * 1.16, 0.42, 1),
     durationMs: selectedDurationMs(),
   };
 }
 
-function finalCalibrationSummary(result: AnalyzeResponse, intent: EmotionIntent & { summary?: string }): string {
-  const summary = result.summary || intent.summary || 'Final LLM emotion intent applied.';
-  if (result.intent?.emotion && result.intent.emotion !== intent.emotion) {
-    return `${summary} Stream signal kept ${intent.emotion} instead of ${result.intent.emotion}.`;
-  }
-  return summary;
+function softenRealtimeSemanticIntent(intent: EmotionIntent & { summary?: string } = { emotion: 'neutral' }): EmotionIntent & { summary?: string } {
+  const baseIntensity = intent.intensity ?? selectedIntensity();
+  const highPriority = intent.emotion === 'panic' || intent.emotion === 'angry';
+  const expressiveBoost = selectedExpressiveness() >= 1.25 ? 0.12 : 0;
+  return {
+    ...intent,
+    intensity: highPriority
+      ? clamp(baseIntensity * 1.08, 0.5, intent.emotion === 'panic' ? 0.9 + expressiveBoost : 0.86 + expressiveBoost)
+      : clamp(baseIntensity * 1.18, 0.46, 1),
+    durationMs: Math.round(clamp(intent.durationMs ?? selectedDurationMs(), 600, 1800)),
+  };
 }
 
 async function analyzeWithLlm(
-  messages = parseTextareaMessages(summaryInput.value),
-  text = summaryInput.value,
+  messages: ConversationMessage[] = chatHistory,
+  text = formatMessages(chatHistory),
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/analyze', {
     method: 'POST',
@@ -512,7 +541,7 @@ async function analyzeWithLlm(
   return data;
 }
 
-async function* streamAssistantReply(messages: DialogueCase['messages']): AsyncGenerator<ChatStreamEvent> {
+async function* streamAssistantReply(messages: ConversationMessage[]): AsyncGenerator<ChatStreamEvent> {
   const abortController = new AbortController();
   const timeout = window.setTimeout(() => abortController.abort(), 120_000);
   try {
@@ -534,7 +563,7 @@ async function* streamAssistantReply(messages: DialogueCase['messages']): AsyncG
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const parsed = consumeDemoSseEvents(buffer);
+        const parsed = consumeDemoSseEvents<ChatStreamEvent>(buffer);
         buffer = parsed.remaining;
         for (const event of parsed.events) yield event;
       }
@@ -546,8 +575,64 @@ async function* streamAssistantReply(messages: DialogueCase['messages']): AsyncG
   }
 }
 
-function consumeDemoSseEvents(buffer: string): { remaining: string; events: ChatStreamEvent[] } {
-  const events: ChatStreamEvent[] = [];
+async function streamEmotionPlan(
+  runId: number,
+  director: Live2DRealtimeMotionDirector,
+  messages: ConversationMessage[],
+): Promise<void> {
+  try {
+    for await (const event of streamEmotionIntents(chatMessagesForLlm(messages))) {
+      if (runId !== playbackSerial) return;
+      if (event.type === 'intent') {
+        const intent = softenStreamIntent(event.intent);
+        const meta = director.pushSemanticIntent(intent);
+        updateRealtimeMeta(meta);
+      }
+      if (event.type === 'error') throw new Error(event.error);
+    }
+  } catch (error) {
+    if (runId !== playbackSerial) return;
+    const message = error instanceof Error ? error.message : String(error || 'unknown error');
+    llmSummaryOutput.textContent = `Emotion stream failed: ${message}`;
+  }
+}
+
+async function* streamEmotionIntents(messages: ConversationMessage[]): AsyncGenerator<EmotionStreamEvent> {
+  const abortController = new AbortController();
+  const timeout = window.setTimeout(() => abortController.abort(), 90_000);
+  try {
+    const response = await fetch('/api/emotion-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+      signal: abortController.signal,
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(await readErrorResponse(response));
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = consumeDemoSseEvents<EmotionStreamEvent>(buffer);
+        buffer = parsed.remaining;
+        for (const event of parsed.events) yield event;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function consumeDemoSseEvents<T>(buffer: string): { remaining: string; events: T[] } {
+  const events: T[] = [];
   let cursor = 0;
   while (true) {
     const next = buffer.indexOf('\n', cursor);
@@ -558,7 +643,7 @@ function consumeDemoSseEvents(buffer: string): { remaining: string; events: Chat
     const payload = line.slice(5).trim();
     if (!payload) continue;
     try {
-      const event = JSON.parse(payload) as ChatStreamEvent;
+      const event = JSON.parse(payload) as T;
       events.push(event);
     } catch {}
   }
@@ -575,21 +660,13 @@ async function readErrorResponse(response: Response): Promise<string> {
   }
 }
 
-function selectCase(id: string): void {
-  activeCase = CASES.find((item) => item.id === id) || CASES[0];
-  summaryInput.value = formatMessages(activeCase.messages);
-  for (const button of Array.from(caseList.querySelectorAll<HTMLButtonElement>('button'))) {
-    button.classList.toggle('active', button.textContent === activeCase.label);
-  }
-}
-
-function formatMessages(messages: DialogueCase['messages']): string {
+function formatMessages(messages: ConversationMessage[]): string {
   return messages
     .map((message) => `${message.role === 'user' ? 'User' : 'Yachiyo'}: ${message.content}`)
     .join('\n');
 }
 
-function parseTextareaMessages(value: string): DialogueCase['messages'] {
+function parseMessagesFromText(value: string): ConversationMessage[] {
   return value
     .split(/\n+/)
     .map((line) => line.trim())
@@ -604,10 +681,38 @@ function parseTextareaMessages(value: string): DialogueCase['messages'] {
     });
 }
 
+function softenStreamIntent(intent: EmotionIntent & { summary?: string }): EmotionIntent & { summary?: string } {
+  return {
+    ...intent,
+    intensity: clamp((intent.intensity ?? selectedIntensity()) * 1.28, 0.52, 1),
+    durationMs: Math.round(clamp(intent.durationMs ?? selectedDurationMs(), 500, 1800)),
+  };
+}
+
+function requestPixiFrame(callback: (timestamp: number) => void): number {
+  if (!app?.ticker) return window.requestAnimationFrame(callback);
+  const id = nextTickerFrameId++;
+  const wrapped = () => {
+    app.ticker?.remove(wrapped);
+    tickerFrames.delete(id);
+    callback(performance.now());
+  };
+  tickerFrames.set(id, wrapped);
+  app.ticker.add(wrapped);
+  return id;
+}
+
+function cancelPixiFrame(handle: number): void {
+  const callback = tickerFrames.get(handle);
+  if (callback) app?.ticker?.remove(callback);
+  tickerFrames.delete(handle);
+}
+
 function setBusy(value: boolean): void {
   document.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
     button.disabled = value;
   });
+  chatInput.disabled = value;
 }
 
 async function loadPixiRuntime(): Promise<void> {
@@ -673,23 +778,19 @@ function selectedDurationMs(): number {
 }
 
 function selectedStreamWeight(): number {
-  return clamp(Number(streamWeightInput.value || 0.52), 0.2, 0.9);
+  return clamp(Number(streamWeightInput.value || 0.95), 0.2, 1);
 }
 
 function selectedSmoothingMs(): number {
-  return Math.round(clamp(Number(smoothingInput.value || 420), 120, 900));
-}
-
-function selectedPromptBias(): number {
-  return clamp(Number(promptBiasInput.value || 0.28), 0, 0.6);
-}
-
-function selectedFinalBlend(): number {
-  return clamp(Number(finalBlendInput.value || 0.55), 0, 1);
+  return Math.round(clamp(Number(smoothingInput.value || 180), 80, 900));
 }
 
 function selectedStability(): number {
-  return clamp(Number(stabilityInput.value || 0.82), 0, 1);
+  return clamp(Number(stabilityInput.value || 0.55), 0, 1);
+}
+
+function selectedExpressiveness(): number {
+  return clamp(Number(expressivenessInput.value || 2.05), 0.6, 2.6);
 }
 
 function countTimelineParameters(timeline: TimelineExpressionResult): number {
@@ -709,7 +810,17 @@ function setStatus(value: string): void {
 }
 
 function setDemoStatus(status: DemoStatus): void {
-  document.documentElement.dataset.live2dDemoStatus = JSON.stringify(status);
+  document.documentElement.dataset.live2dDemoStatus = JSON.stringify({
+    capabilityScore: motionCapability?.score,
+    capabilityFeatures: motionCapability?.availableFeatures,
+    ...status,
+  });
+}
+
+function formatCapability(capability: Live2DMotionCapability): string {
+  const score = Math.round(capability.score * 100);
+  const features = capability.availableFeatures.slice(0, 6).join(', ');
+  return `${score}% · ${features}`;
 }
 
 function loadScript(src: string): Promise<void> {

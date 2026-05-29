@@ -2,7 +2,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { defineConfig, type Plugin } from 'vite';
 
-import { OpenAICompatibleEmotionAnalyzer } from './src-ts/openai-analyzer.ts';
+import {
+  OpenAICompatibleEmotionAnalyzer,
+  resolveOpenAICompatibleProviderExtraBody,
+} from './src-ts/openai-analyzer.ts';
 
 type AnalyzeRequest = {
   messages?: Array<{ role?: string; content?: string }>;
@@ -107,6 +110,47 @@ function llmAnalyzeApi(): Plugin {
           });
         }
       });
+
+      server.middlewares.use('/api/emotion-stream', async (request, response, next) => {
+        if (request.method === 'OPTIONS') {
+          writeJson(response, 204, {});
+          return;
+        }
+        if (request.method !== 'POST') {
+          next();
+          return;
+        }
+
+        try {
+          const apiKey = process.env.LIVE2D_LLM_API_KEY || '';
+          const baseUrl = process.env.LIVE2D_LLM_BASE_URL || 'https://api.openai.com/v1';
+          const model = process.env.LIVE2D_LLM_MODEL || 'mimo-v2.5';
+          if (!apiKey) throw new Error('LIVE2D_LLM_API_KEY is not set in the demo server environment');
+
+          const body = JSON.parse(await readRequestBody(request)) as ChatStreamRequest;
+          await streamEmotionIntents({
+            apiKey,
+            baseUrl,
+            model,
+            messages: normalizeChatMessages(body.messages),
+            request,
+            response,
+          });
+        } catch (error) {
+          if (response.headersSent) {
+            writeSseEvent(response, {
+              type: 'error',
+              error: error instanceof Error ? error.message : String(error || 'unknown error'),
+            });
+            response.end();
+            return;
+          }
+          writeJson(response, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error || 'unknown error'),
+          });
+        }
+      });
     },
   };
 }
@@ -133,6 +177,7 @@ async function streamChatCompletion(options: {
     body: JSON.stringify({
       model: options.model,
       temperature: 0.75,
+      ...resolveOpenAICompatibleProviderExtraBody({ baseUrl: options.baseUrl, model: options.model }),
       stream: true,
       messages: [
         { role: 'system', content: CHAT_SYSTEM_PROMPT },
@@ -177,6 +222,39 @@ async function streamChatCompletion(options: {
   options.response.end();
 }
 
+async function streamEmotionIntents(options: {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  messages: ChatMessage[];
+  request: IncomingMessage;
+  response: ServerResponse;
+}): Promise<void> {
+  if (!options.messages.length) throw new Error('At least one user message is required');
+
+  const analyzer = new OpenAICompatibleEmotionAnalyzer({
+    baseUrl: options.baseUrl,
+    apiKey: options.apiKey,
+    model: options.model,
+    temperature: 0.15,
+    maxTokens: 260,
+  });
+
+  writeSseHeaders(options.response);
+  for await (const event of analyzer.stream([
+    'Dialogue so far:',
+    formatChatMessages(options.messages),
+  ].join('\n'))) {
+    writeSseEvent(options.response, {
+      type: 'intent',
+      intent: event.intent,
+      summary: event.intent.summary || '',
+    });
+  }
+  writeSseEvent(options.response, { type: 'done' });
+  options.response.end();
+}
+
 function normalizeChatMessages(messages: ChatStreamRequest['messages']): ChatMessage[] {
   if (!Array.isArray(messages)) return [];
   return messages
@@ -194,6 +272,10 @@ function normalizeChatRole(role: unknown): ChatMessage['role'] {
   if (normalized === 'assistant') return 'assistant';
   if (normalized === 'system') return 'system';
   return 'user';
+}
+
+function formatChatMessages(messages: ChatMessage[]): string {
+  return messages.map((message) => `${message.role}: ${message.content}`).join('\n');
 }
 
 function consumeOpenAISseLines(buffer: string, onData: (payload: string) => void): string {

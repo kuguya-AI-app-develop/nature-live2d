@@ -11,7 +11,7 @@
       <aside class="control-panel">
         <header class="panel-header">
           <span>Nature Live2D</span>
-          <h1>Web Demo</h1>
+          <h1>Conversation Demo</h1>
         </header>
 
         <label class="field">
@@ -22,15 +22,19 @@
           </select>
         </label>
 
-        <label class="field">
-          <span>Dialogue cases</span>
-          <div id="case-list" class="case-list" aria-label="Dialogue cases"></div>
-        </label>
-
-        <label class="field">
-          <span>Conversation prompt</span>
-          <textarea id="summary" rows="6"></textarea>
-        </label>
+        <section class="chat-card" aria-label="Conversation">
+          <div id="chat-log" class="chat-log" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form">
+            <label class="field chat-field">
+              <span>Your message</span>
+              <textarea id="chat-input" rows="3" placeholder="输入一句真实对话，观察八千代如何边回复边反应。"></textarea>
+            </label>
+            <div class="button-row">
+              <button id="send-message" type="submit">Send</button>
+              <button id="clear-chat" type="button">Clear</button>
+            </div>
+          </form>
+        </section>
 
         <div class="field-grid">
           <label class="field">
@@ -46,36 +50,41 @@
         <div class="tuning-grid">
           <label class="field">
             <span>Stream weight</span>
-            <input id="stream-weight" type="range" min="0.2" max="0.9" step="0.05" value="0.52" />
+            <input id="stream-weight" type="range" min="0.2" max="1" step="0.05" value="0.95" />
           </label>
           <label class="field">
             <span>Smoothing</span>
-            <input id="smoothing" type="range" min="120" max="900" step="20" value="420" />
-          </label>
-          <label class="field">
-            <span>Prompt bias</span>
-            <input id="prompt-bias" type="range" min="0" max="0.6" step="0.05" value="0.28" />
-          </label>
-          <label class="field">
-            <span>Final blend</span>
-            <input id="final-blend" type="range" min="0" max="1" step="0.05" value="0.55" />
+            <input id="smoothing" type="range" min="80" max="900" step="20" value="180" />
           </label>
           <label class="field">
             <span>Stability</span>
-            <input id="stability" type="range" min="0" max="1" step="0.05" value="0.82" />
+            <input id="stability" type="range" min="0" max="1" step="0.05" value="0.55" />
+          </label>
+          <label class="field">
+            <span>Expressiveness</span>
+            <input id="expressiveness" type="range" min="0.6" max="2.6" step="0.05" value="2.05" />
           </label>
         </div>
 
         <div class="button-row">
-          <button id="play-text" type="button">Stream Reply</button>
-          <button id="play-natural" type="button">Natural Motion</button>
           <button id="play-shy" type="button">Shy</button>
           <button id="play-happy" type="button">Happy</button>
+          <button id="play-proud" type="button">Proud</button>
+          <button id="play-excited" type="button">Excited</button>
+          <button id="play-grateful" type="button">Grateful</button>
+          <button id="play-playful" type="button">Playful</button>
+          <button id="play-amused" type="button">Amused</button>
+          <button id="play-skeptical" type="button">Skeptical</button>
+          <button id="play-reassuring" type="button">Reassure</button>
+          <button id="play-focused" type="button">Focused</button>
+          <button id="play-frustrated" type="button">Frustrated</button>
+          <button id="play-startled" type="button">Startled</button>
+          <button id="play-nervous" type="button">Nervous</button>
         </div>
 
         <section class="reply-card" aria-label="Assistant reply">
-          <span>Assistant reply</span>
-          <p id="assistant-reply">Waiting for a case.</p>
+          <span>Latest assistant reply</span>
+          <p id="assistant-reply">Waiting for a message.</p>
         </section>
 
         <section class="signal-card" aria-label="Stream signal">
@@ -84,14 +93,18 @@
         </section>
 
         <section class="llm-card" aria-label="LLM evaluation">
-          <span>Final emotion calibration</span>
-          <p id="llm-summary">Waiting for a case.</p>
+          <span>Semantic calibration</span>
+          <p id="llm-summary">Waiting for a message.</p>
         </section>
 
         <dl class="stats">
           <div>
             <dt>Model</dt>
             <dd id="model-name">Loading</dd>
+          </div>
+          <div>
+            <dt>Capability</dt>
+            <dd id="capability">Scanning</dd>
           </div>
           <div>
             <dt>Emotion</dt>

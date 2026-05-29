@@ -27,6 +27,7 @@ export function buildTimeline(options: {
 
   return {
     emotion: intent.emotion,
+    tone: intent.tone,
     intensity: intent.intensity,
     durationMs: intent.durationMs,
     keyframes: dedupeKeyframes(keyframes),

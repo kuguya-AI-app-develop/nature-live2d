@@ -20,6 +20,10 @@ export const EXPRESSION_LAYER_PRESETS: Record<string, Record<string, number>> = 
     ParamHighLightHide_EyesL1: 0,
     ParamHide_EyeSocket: 0,
     ParamHide_EyeSocket2: 0,
+    ParamCryDown_L: 0.32,
+    ParamTearDown_1: 0.55,
+    ParamTearDown_2: 0.36,
+    ParamTearDown_3: 0.2,
   },
   tear_drop: {
     ParamExpression_1: 0,
@@ -30,6 +34,7 @@ export const EXPRESSION_LAYER_PRESETS: Record<string, Record<string, number>> = 
     ParamHighLightHide_EyesL1: 1,
     ParamHide_EyeSocket: 1,
     ParamHide_EyeSocket2: 1,
+    ParamTearDown_1: 0.3,
   },
   closed_eye_smile: {
     ParamExpression_1: 0,
@@ -40,6 +45,7 @@ export const EXPRESSION_LAYER_PRESETS: Record<string, Record<string, number>> = 
     ParamHighLightHide_EyesL1: 1,
     ParamHide_EyeSocket: 1,
     ParamHide_EyeSocket2: 1,
+    ParamEyeCircles: 0,
   },
   squeezed_eyes: {
     ParamExpression_1: 0,
@@ -50,6 +56,7 @@ export const EXPRESSION_LAYER_PRESETS: Record<string, Record<string, number>> = 
     ParamHighLightHide_EyesL1: 1,
     ParamHide_EyeSocket: 1,
     ParamHide_EyeSocket2: 1,
+    ParamEyeCircles: 0.18,
   },
 };
 
@@ -61,11 +68,15 @@ export function resolveSpecialExpression(intent: NormalizedEmotionIntent): Speci
   if (
     (intent.emotion === "happy" || intent.emotion === "teasing") &&
     intent.intensity >= 0.8 &&
-    intent.eyes === "closed_smile"
+    (
+      intent.eyes === "closed_smile"
+      || intent.tone === "proud"
+      || intent.tone === "relieved"
+      || intent.tone === "grateful"
+    )
   ) {
     return "closed_eye_smile";
   }
-  if (intent.emotion === "panic" && intent.intensity >= 0.7) return "squeezed_eyes";
   return "none";
 }
 
@@ -78,4 +89,3 @@ export function applySpecialExpression(
     ...(EXPRESSION_LAYER_PRESETS[specialExpression] ?? EXPRESSION_LAYER_PRESETS.none),
   };
 }
-

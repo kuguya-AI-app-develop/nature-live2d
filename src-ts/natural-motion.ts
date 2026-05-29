@@ -1,16 +1,26 @@
 import { normalizeIntent } from "./intent.js";
-import type { EmotionIntent, EmotionName, NormalizedEmotionIntent, TimelineKeyframe, TimelinePhaseName } from "./types.js";
+import { hasMotionFeature } from "./motion-capability.js";
+import type {
+  EmotionIntent,
+  EmotionName,
+  Live2DMotionCapability,
+  TimelineKeyframe,
+  NormalizedEmotionIntent,
+  TimelinePhaseName,
+} from "./types.js";
 
 export interface NaturalMotionOptions {
   durationMs?: number;
   frameIntervalMs?: number;
   liveliness?: number;
   stability?: number;
+  expressiveness?: number;
   microMotion?: boolean;
   thinkingMs?: number;
   minKeyframes?: number;
   maxKeyframes?: number;
   maxParameterSpeed?: Partial<Record<string, number>>;
+  motionCapability?: Live2DMotionCapability;
 }
 
 export interface NaturalMotionStep {
@@ -36,7 +46,8 @@ export function createNaturalMotionPlan(
   const maxKeyframes = Math.max(minKeyframes, Math.round(options.maxKeyframes ?? 36));
   const naturalCount = Math.floor(durationMs / frameIntervalMs) + 1;
   const keyframeCount = Math.round(clamp(naturalCount, minKeyframes, maxKeyframes));
-  const liveliness = clamp(options.liveliness ?? 0.62, 0, 1);
+  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 2.6);
+  const liveliness = clamp((options.liveliness ?? 0.62) * (0.86 + expressiveness * 0.2), 0, 1);
   const fastReaction = isFastReaction(intent.emotion);
   const thinkingMs = options.thinkingMs ?? durationMs * (fastReaction ? 0.08 : 0.22);
   const thinkingEnd = clamp(thinkingMs / durationMs, fastReaction ? 0.04 : 0.1, fastReaction ? 0.16 : 0.35);
@@ -52,8 +63,8 @@ export function createNaturalMotionPlan(
     const phase = resolvePhase(progress, thinkingEnd, anticipationEnd, reactionEnd);
     const amount = resolveExpressionAmount(progress, phase, thinkingEnd, anticipationEnd, reactionEnd, fastReaction);
     const pulse = phase === "settle"
-      ? Math.sin(index * 1.7) * 0.035 * liveliness
-      : Math.sin(index * 1.35) * 0.018 * liveliness * amount;
+      ? Math.sin(index * 1.7) * 0.035 * liveliness * expressiveness
+      : Math.sin(index * 1.35) * 0.018 * liveliness * amount * expressiveness;
     const intensity = clamp((intent.intensity * amount) + pulse, 0, 1);
     steps.push({
       t,
@@ -75,6 +86,7 @@ function createStepIntent(
   const targetModifiers = useTargetModifiers
     ? {
         gaze: target.gaze,
+        tone: target.tone,
         head: target.head,
         eyes: target.eyes,
         brows: target.brows,
@@ -85,6 +97,7 @@ function createStepIntent(
 
   return {
     emotion: target.emotion,
+    tone: target.tone,
     intensity,
     durationMs,
     ...targetModifiers,
@@ -238,19 +251,32 @@ export function applyNaturalParameterMotion(
 ): Record<string, number> {
   if (options.microMotion === false || step.phase === "neutral") return { ...params };
   const next = { ...params };
-  const liveliness = clamp(options.liveliness ?? 0.62, 0, 1);
+  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 2.6);
+  const liveliness = clamp((options.liveliness ?? 0.62) * (0.86 + expressiveness * 0.2), 0, 1);
   const stability = clamp(options.stability ?? 0.82, 0, 1);
   const progress = plan.durationMs <= 0 ? 1 : step.t / plan.durationMs;
   const phaseWeight = step.phase === "settle" ? 1 : step.phase === "reaction" ? 0.6 : 0.25;
-  const amplitude = liveliness * (1 - stability) * phaseWeight;
+  const amplitude = liveliness * (1 - stability) * phaseWeight * (0.86 + expressiveness * 0.28);
   const breath = Math.sin(progress * Math.PI * 1.15);
   const drift = Math.sin((progress * Math.PI * 0.72) + 0.4);
+  const hasFeature = (feature: Parameters<typeof hasMotionFeature>[1]) => {
+    return !options.motionCapability || hasMotionFeature(options.motionCapability, feature);
+  };
+  const hasParam = (id: string) => {
+    return !options.motionCapability || options.motionCapability.safeParameterIds.includes(id);
+  };
 
-  next.ParamAngleX = (next.ParamAngleX ?? 0) + (breath * 1.2 * amplitude);
-  next.ParamAngleZ = (next.ParamAngleZ ?? 0) + (drift * 0.9 * amplitude);
-  next.ParamBodyAngleX = (next.ParamBodyAngleX ?? 0) + (drift * 0.7 * amplitude);
-  next.ParamEyeBallX = (next.ParamEyeBallX ?? 0) + (drift * 0.05 * amplitude);
-  next.ParamEyeBallY = (next.ParamEyeBallY ?? 0) + (breath * 0.035 * amplitude);
+  if (hasFeature("head")) {
+    if (hasParam("ParamAngleX")) next.ParamAngleX = (next.ParamAngleX ?? 0) + (breath * 1.45 * amplitude);
+    if (hasParam("ParamAngleZ")) next.ParamAngleZ = (next.ParamAngleZ ?? 0) + (drift * 1.15 * amplitude);
+  }
+  if (hasFeature("body")) {
+    if (hasParam("ParamBodyAngleX")) next.ParamBodyAngleX = (next.ParamBodyAngleX ?? 0) + (drift * 0.95 * amplitude);
+  }
+  if (hasFeature("gaze")) {
+    if (hasParam("ParamEyeBallX")) next.ParamEyeBallX = (next.ParamEyeBallX ?? 0) + (drift * 0.07 * amplitude);
+    if (hasParam("ParamEyeBallY")) next.ParamEyeBallY = (next.ParamEyeBallY ?? 0) + (breath * 0.05 * amplitude);
+  }
   return next;
 }
 

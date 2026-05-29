@@ -1,4 +1,4 @@
-import type { EmotionIntent, EmotionName, NormalizedEmotionIntent } from "./types.js";
+import type { EmotionIntent, EmotionName, EmotionToneName, NormalizedEmotionIntent } from "./types.js";
 
 const EMOTIONS = new Set<EmotionName>([
   "neutral",
@@ -15,12 +15,39 @@ const EMOTIONS = new Set<EmotionName>([
   "panic",
 ]);
 
+const TONES = new Set<EmotionToneName>([
+  "concerned",
+  "reassuring",
+  "relieved",
+  "proud",
+  "playful",
+  "bashful",
+  "determined",
+  "disappointed",
+  "nervous",
+  "excited",
+  "grateful",
+  "amused",
+  "skeptical",
+  "focused",
+  "apologetic",
+  "frustrated",
+  "startled",
+]);
+
 export function normalizeIntent(intent: EmotionIntent): NormalizedEmotionIntent {
   if (!EMOTIONS.has(intent.emotion)) {
     throw new Error(`Unsupported emotion: ${intent.emotion}`);
   }
+  const tone = intent.tone ?? null;
+  if (tone && !TONES.has(tone)) {
+    throw new Error(`Unsupported emotion tone: ${tone}`);
+  }
   return {
     emotion: intent.emotion,
+    tone,
+    presetId: intent.presetId ?? null,
+    presetLabel: intent.presetLabel ?? null,
     intensity: clamp(Number(intent.intensity ?? 0.5), 0, 1),
     gaze: intent.gaze ?? null,
     head: intent.head ?? null,
@@ -35,4 +62,3 @@ export function normalizeIntent(intent: EmotionIntent): NormalizedEmotionIntent 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
-

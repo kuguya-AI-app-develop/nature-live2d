@@ -1,4 +1,4 @@
-import type { ExpressionResult, EmotionIntent, EmotionName, SpecialExpressionName } from "./types.js";
+import type { ExpressionResult, EmotionIntent, EmotionName, EmotionToneName, SpecialExpressionName } from "./types.js";
 
 export type EmotionSignalSource = "prompt" | "reply" | "final" | "sustain" | "fallback";
 
@@ -12,6 +12,8 @@ export interface EmotionSignalTextInput {
 export interface EmotionSignal {
   source: EmotionSignalSource;
   intent: EmotionIntent;
+  presetId?: string | null;
+  presetLabel?: string | null;
   confidence: number;
   matched: string[];
   held: boolean;
@@ -20,7 +22,10 @@ export interface EmotionSignal {
 }
 
 export interface EmotionSignalRule {
+  presetId?: string;
+  presetLabel?: string;
   emotion: EmotionName;
+  tone?: EmotionToneName | null;
   patterns: Array<string | RegExp>;
   intensity?: number;
   confidence?: number;
@@ -89,16 +94,22 @@ export interface Live2DExpressionOrchestratorResult {
   result: ExpressionResult;
 }
 
-const DEFAULT_RULES: EmotionSignalRule[] = [
+export const DEFAULT_EMOTION_SIGNAL_PRESETS: EmotionSignalRule[] = [
   {
+    presetId: "crying_disappointed",
+    presetLabel: "Crying Disappointed",
     emotion: "crying",
+    tone: "disappointed",
     patterns: ["哭", "眼泪", "泪珠", "tears", "cry"],
     intensity: 0.72,
     confidence: 0.72,
     specialExpression: "tears",
   },
   {
+    presetId: "shy_bashful",
+    presetLabel: "Shy Bashful",
     emotion: "shy",
+    tone: "bashful",
     patterns: ["害羞", "脸红", "不好意思", "被夸", "夸奖", "夸我", "可靠", "shy", "compliment"],
     intensity: 0.58,
     confidence: 0.68,
@@ -106,39 +117,275 @@ const DEFAULT_RULES: EmotionSignalRule[] = [
     mouth: "small_smile",
   },
   {
+    presetId: "happy_excited",
+    presetLabel: "Happy Excited",
+    emotion: "happy",
+    tone: "excited",
+    patterns: ["太棒", "成功", "发布成功", "终于", "惊喜", "做到了", "跑通", "赢了", "awesome", "success", "excited"],
+    intensity: 0.78,
+    confidence: 0.78,
+    eyes: "wide",
+    mouth: "smile",
+    head: "raised",
+  },
+  {
+    presetId: "happy_grateful",
+    presetLabel: "Happy Grateful",
+    emotion: "happy",
+    tone: "grateful",
+    patterns: ["谢谢", "感谢", "帮大忙", "帮了大忙", "有你", "辛苦你", "多亏", "thank", "grateful"],
+    intensity: 0.66,
+    confidence: 0.74,
+    eyes: "soft",
+    mouth: "smile",
+    head: "lowered",
+  },
+  {
+    presetId: "panic_reassuring",
+    presetLabel: "Reassuring Panic",
     emotion: "panic",
+    tone: "reassuring",
+    patterns: ["别慌", "不要慌", "稳住", "深呼吸", "来得及", "一起处理", "reassure panic"],
+    intensity: 0.68,
+    confidence: 0.78,
+    brows: "worried",
+    mouth: "small_smile",
+  },
+  {
+    presetId: "sad_reassuring",
+    presetLabel: "Sad Reassuring",
+    emotion: "sad",
+    tone: "reassuring",
+    patterns: ["别慌", "不要慌", "冷静", "稳住", "深呼吸", "一步步", "陪你", "一起处理", "reassure"],
+    intensity: 0.58,
+    confidence: 0.72,
+    brows: "worried",
+    mouth: "small_smile",
+  },
+  {
+    presetId: "angry_focused",
+    presetLabel: "Focused Resolve",
+    emotion: "angry",
+    tone: "focused",
+    patterns: ["定位", "排查", "日志", "回滚", "修复", "先看", "处理方案", "开始处理", "debug", "diagnose", "focus"],
+    intensity: 0.64,
+    confidence: 0.74,
+    brows: "angry",
+    mouth: "pressed",
+    head: "raised",
+  },
+  {
+    presetId: "panic_startled",
+    presetLabel: "Startled Panic",
+    emotion: "panic",
+    tone: "startled",
+    patterns: ["吓死", "后怕", "差点炸", "刚才好险", "太突然了", "心跳", "terrified"],
+    intensity: 0.82,
+    confidence: 0.78,
+    eyes: "wide",
+    mouth: "open",
+  },
+  {
+    presetId: "panic_nervous",
+    presetLabel: "Panic Nervous",
+    emotion: "panic",
+    tone: "nervous",
     patterns: ["糟了", "慌", "紧急", "生产", "线上", "报错", "宕机", "事故", "urgent", "panic"],
     intensity: 0.74,
     confidence: 0.72,
   },
   {
+    presetId: "panic_focused",
+    presetLabel: "Focused Incident",
+    emotion: "panic",
+    tone: "focused",
+    patterns: ["事故复盘", "先止血", "紧急排查", "先恢复", "应急处理", "incident response"],
+    intensity: 0.7,
+    confidence: 0.74,
+    eyes: "wide",
+    brows: "worried",
+    mouth: "pressed",
+  },
+  {
+    presetId: "happy_relieved",
+    presetLabel: "Relieved Happiness",
+    emotion: "happy",
+    tone: "relieved",
+    patterns: ["松了一口气", "松口气", "放心了", "恢复了", "稳住了", "安全了", "relieved"],
+    intensity: 0.68,
+    confidence: 0.72,
+    eyes: "soft",
+    mouth: "smile",
+    head: "raised",
+  },
+  {
+    presetId: "surprised_startled",
+    presetLabel: "Startled Surprise",
     emotion: "surprised",
-    patterns: ["哇", "居然", "没想到", "一次跑通", "惊", "surprise", "unexpected"],
-    intensity: 0.66,
-    confidence: 0.64,
+    tone: "startled",
+    patterns: ["突然", "吓", "一惊", "刚刚发生", "瞬间", "猝不及防", "startled"],
+    intensity: 0.76,
+    confidence: 0.7,
     eyes: "wide",
     mouth: "open",
   },
   {
+    presetId: "surprised_excited",
+    presetLabel: "Excited Surprise",
+    emotion: "surprised",
+    tone: "excited",
+    patterns: ["太强了", "好厉害", "居然真的", "突然成功", "意外成功", "惊喜成功"],
+    intensity: 0.78,
+    confidence: 0.74,
+    eyes: "wide",
+    mouth: "open",
+    head: "raised",
+  },
+  {
+    presetId: "surprised_delighted",
+    presetLabel: "Delighted Surprise",
+    emotion: "surprised",
+    tone: "startled",
+    patterns: ["哇", "居然", "没想到", "一次跑通", "一次就跑通", "惊", "surprise", "unexpected"],
+    intensity: 0.66,
+    confidence: 0.7,
+    eyes: "wide",
+    mouth: "open",
+  },
+  {
+    presetId: "shy_grateful",
+    presetLabel: "Shy Gratitude",
+    emotion: "shy",
+    tone: "grateful",
+    patterns: ["被你帮到", "多亏你", "谢谢你夸", "又害羞又开心", "不好意思但很开心"],
+    intensity: 0.68,
+    confidence: 0.72,
+    gaze: "down_right",
+    mouth: "small_smile",
+  },
+  {
+    presetId: "embarrassed_bashful",
+    presetLabel: "Embarrassed Bashful",
+    emotion: "embarrassed",
+    tone: "bashful",
+    patterns: ["尴尬", "社死", "脸烫", "脸红到", "不好意思到", "embarrassed"],
+    intensity: 0.72,
+    confidence: 0.72,
+    gaze: "down_left",
+    mouth: "small_smile",
+  },
+  {
+    presetId: "teasing_playful",
+    presetLabel: "Playful Teasing",
     emotion: "teasing",
+    tone: "playful",
     patterns: ["逗", "哼哼", "破绽", "调皮", "teasing", "smirk"],
     intensity: 0.56,
     confidence: 0.62,
   },
   {
+    presetId: "teasing_amused",
+    presetLabel: "Amused Teasing",
+    emotion: "teasing",
+    tone: "amused",
+    patterns: ["哈哈", "好笑", "笑死", "被你逗笑", "原来如此", "amused", "funny"],
+    intensity: 0.66,
+    confidence: 0.68,
+    eyes: "soft",
+    mouth: "smile",
+  },
+  {
+    presetId: "confused_skeptical",
+    presetLabel: "Skeptical Confusion",
     emotion: "confused",
+    tone: "skeptical",
+    patterns: ["嗯？", "嗯?", "是不是", "不太对", "哪里不对", "真的吗", "确定吗", "可疑", "skeptical"],
+    intensity: 0.62,
+    confidence: 0.74,
+    brows: "worried",
+    mouth: "pout",
+    head: "tilted_left",
+  },
+  {
+    presetId: "confused_concerned",
+    presetLabel: "Concerned Confusion",
+    emotion: "confused",
+    tone: "concerned",
     patterns: ["困惑", "疑惑", "不明白", "confused"],
     intensity: 0.52,
     confidence: 0.58,
   },
   {
+    presetId: "confused_focused",
+    presetLabel: "Focused Confusion",
+    emotion: "confused",
+    tone: "focused",
+    patterns: ["先理一下", "重新梳理", "看起来像", "我需要确认", "复盘一下", "trace"],
+    intensity: 0.62,
+    confidence: 0.68,
+    brows: "worried",
+    mouth: "pressed",
+  },
+  {
+    presetId: "angry_determined",
+    presetLabel: "Determined Anger",
     emotion: "angry",
+    tone: "determined",
     patterns: ["生气", "愤怒", "不满", "angry"],
     intensity: 0.62,
     confidence: 0.62,
   },
   {
+    presetId: "angry_frustrated",
+    presetLabel: "Frustrated Anger",
+    emotion: "angry",
+    tone: "frustrated",
+    patterns: ["烦", "崩溃", "卡住", "怎么又", "受不了", "糟糕透", "frustrated"],
+    intensity: 0.72,
+    confidence: 0.72,
+    brows: "angry",
+    mouth: "pressed",
+  },
+  {
+    presetId: "crying_apologetic",
+    presetLabel: "Apologetic Crying",
+    emotion: "crying",
+    tone: "apologetic",
+    patterns: ["哭着道歉", "对不起我哭", "真的抱歉", "眼泪止不住", "哭出来了"],
+    intensity: 0.82,
+    confidence: 0.8,
+    specialExpression: "tears",
+    brows: "worried",
+    mouth: "frown",
+  },
+  {
+    presetId: "sad_apologetic",
+    presetLabel: "Apologetic Sadness",
     emotion: "sad",
+    tone: "apologetic",
+    patterns: ["对不起", "抱歉", "是我不好", "我错了", "添麻烦", "apologetic"],
+    intensity: 0.62,
+    confidence: 0.72,
+    brows: "worried",
+    mouth: "small_smile",
+    head: "lowered",
+  },
+  {
+    presetId: "sad_concerned",
+    presetLabel: "Concerned Sadness",
+    emotion: "sad",
+    tone: "concerned",
+    patterns: ["担心", "不安", "放心不下", "心里发沉", "有点怕", "concerned"],
+    intensity: 0.64,
+    confidence: 0.7,
+    brows: "worried",
+    mouth: "frown",
+  },
+  {
+    presetId: "sad_disappointed",
+    presetLabel: "Disappointed Sadness",
+    emotion: "sad",
+    tone: "disappointed",
     patterns: ["难过", "失败", "白忙", "累", "辛苦", "苛责", "对不起", "抱歉", "sad", "sorry"],
     intensity: 0.6,
     confidence: 0.64,
@@ -146,13 +393,29 @@ const DEFAULT_RULES: EmotionSignalRule[] = [
     mouth: "frown",
   },
   {
+    presetId: "happy_playful",
+    presetLabel: "Playful Happiness",
     emotion: "happy",
+    tone: "playful",
+    patterns: ["嘿嘿", "有点得意", "偷笑", "小开心", "开心到想逗你"],
+    intensity: 0.68,
+    confidence: 0.66,
+    mouth: "smile",
+    head: "tilted_right",
+  },
+  {
+    presetId: "happy_proud",
+    presetLabel: "Proud Happiness",
+    emotion: "happy",
+    tone: "proud",
     patterns: ["开心", "高兴", "笑", "顺利", "厉害", "爽", "happy", "smile"],
     intensity: 0.62,
     confidence: 0.58,
     mouth: "smile",
   },
   {
+    presetId: "sleepy_soft",
+    presetLabel: "Sleepy Soft",
     emotion: "sleepy",
     patterns: ["困", "睡", "sleepy"],
     intensity: 0.52,
@@ -160,6 +423,8 @@ const DEFAULT_RULES: EmotionSignalRule[] = [
     eyes: "sleepy",
   },
 ];
+
+const DEFAULT_RULES: EmotionSignalRule[] = DEFAULT_EMOTION_SIGNAL_PRESETS;
 
 const DEFAULT_SUSTAIN_CYCLES: Record<EmotionName, Omit<EmotionSustainOptions, "now" | "durationMs" | "intensityAmplitude">> = {
   neutral: {
@@ -278,9 +543,16 @@ export class KeywordEmotionEstimator {
       intensity: clamp((match?.intent.intensity ?? 0.45) * confidence * (this.baseIntensity / 0.75), this.minIntensity, this.maxIntensity),
       durationMs: this.durationMs,
     };
+    const preset = resolveEmotionSignalPreset(intent);
     return {
       source,
-      intent,
+      intent: {
+        ...intent,
+        presetId: intent.presetId ?? preset?.presetId ?? null,
+        presetLabel: intent.presetLabel ?? preset?.presetLabel ?? null,
+      },
+      presetId: intent.presetId ?? preset?.presetId ?? null,
+      presetLabel: intent.presetLabel ?? preset?.presetLabel ?? null,
       confidence,
       matched,
       held: false,
@@ -331,8 +603,10 @@ export class EmotionIntentStabilizer {
     const shouldHoldNeutral = currentEmotion !== "neutral"
       && nextEmotion === "neutral"
       && heldForMs < this.neutralHoldMs;
+    const compatibleSwitch = signalEmotionsCompatible(currentEmotion, nextEmotion);
     const shouldHoldSwitch = currentEmotion !== "neutral"
       && nextEmotion !== "neutral"
+      && !compatibleSwitch
       && heldForMs < this.holdMs
       && next.confidence < this.current.confidence + this.switchMargin;
     if (shouldHoldNeutral || shouldHoldSwitch) {
@@ -429,6 +703,21 @@ export function estimateEmotionSignal(input: EmotionSignalTextInput | string, op
   return new KeywordEmotionEstimator(options).estimate(input);
 }
 
+export function getDefaultEmotionSignalPresets(): EmotionSignalRule[] {
+  return DEFAULT_EMOTION_SIGNAL_PRESETS.map((preset) => ({ ...preset, patterns: [...preset.patterns] }));
+}
+
+export function resolveEmotionSignalPreset(intent: EmotionIntent): EmotionSignalRule | null {
+  if (intent.presetId) {
+    return DEFAULT_EMOTION_SIGNAL_PRESETS.find((preset) => preset.presetId === intent.presetId) ?? null;
+  }
+  const toneMatch = intent.tone
+    ? DEFAULT_EMOTION_SIGNAL_PRESETS.find((preset) => preset.emotion === intent.emotion && preset.tone === intent.tone)
+    : null;
+  if (toneMatch) return toneMatch;
+  return DEFAULT_EMOTION_SIGNAL_PRESETS.find((preset) => preset.emotion === intent.emotion && !preset.tone) ?? null;
+}
+
 export function createEmotionIntentStabilizer(options: EmotionIntentStabilizerOptions = {}): EmotionIntentStabilizer {
   return new EmotionIntentStabilizer(options);
 }
@@ -492,6 +781,9 @@ function matchRules(text: string, rules: EmotionSignalRule[]): {
   return {
     intent: {
       emotion: best.rule.emotion,
+      tone: best.rule.tone,
+      presetId: best.rule.presetId,
+      presetLabel: best.rule.presetLabel,
       intensity: best.rule.intensity ?? 0.55,
       gaze: best.rule.gaze,
       head: best.rule.head,
@@ -515,6 +807,22 @@ function isEmotionSignal(value: EmotionSignal | EmotionIntent): value is Emotion
   return Boolean((value as EmotionSignal).intent);
 }
 
+function signalEmotionsCompatible(current: EmotionName, next: EmotionName): boolean {
+  if (current === next) return true;
+  return SIGNAL_EMOTION_COMPATIBILITY[current]?.includes(next) ?? false;
+}
+
+const SIGNAL_EMOTION_COMPATIBILITY: Partial<Record<EmotionName, EmotionName[]>> = {
+  happy: ["shy", "embarrassed", "teasing", "surprised"],
+  shy: ["happy", "embarrassed", "teasing"],
+  embarrassed: ["shy", "happy", "teasing"],
+  surprised: ["happy", "panic"],
+  teasing: ["happy", "shy", "embarrassed"],
+  sad: ["crying", "confused"],
+  crying: ["sad"],
+  panic: ["surprised", "confused", "sad"],
+};
+
 function createSignalFromIntent(
   intent: EmotionIntent,
   timestampMs: number,
@@ -522,9 +830,17 @@ function createSignalFromIntent(
   confidence = 1,
   reason = "explicit intent",
 ): EmotionSignal {
+  const preset = resolveEmotionSignalPreset(intent);
+  const resolvedIntent = {
+    ...intent,
+    presetId: intent.presetId ?? preset?.presetId ?? null,
+    presetLabel: intent.presetLabel ?? preset?.presetLabel ?? null,
+  };
   return {
     source,
-    intent,
+    intent: resolvedIntent,
+    presetId: resolvedIntent.presetId ?? null,
+    presetLabel: resolvedIntent.presetLabel ?? null,
     confidence,
     matched: [],
     held: false,
@@ -559,6 +875,8 @@ function createSustainSignal(
   return {
     source: "sustain",
     intent,
+    presetId: baseSignal.presetId,
+    presetLabel: baseSignal.presetLabel,
     confidence: baseSignal.confidence,
     matched: baseSignal.matched,
     held: false,
