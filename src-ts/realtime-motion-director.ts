@@ -354,9 +354,11 @@ export class Live2DRealtimeMotionDirectorController implements Live2DRealtimeMot
     const finalSemantic = this.streamFinished
       && semanticEmotion !== "neutral"
       && !blocksLocalSemanticOverride(this.localEmotion, semanticEmotion);
+    const unguardedSemanticCorrection = !blocksLocalSemanticOverride(this.localEmotion, semanticEmotion);
     const canSwitch = currentEmotion === "neutral"
       || sameEmotion
       || matchesLocal
+      || unguardedSemanticCorrection
       || repeatedSemantic
       || compatibleFlow
       || finalSemantic;
@@ -712,9 +714,9 @@ function enrichRealtimeIntent(
     intensity,
   };
   if (!intent.specialExpression && expressiveness >= 1.28) {
-    if (intent.emotion === "happy" && intensity >= 0.82 && intent.tone !== "reassuring") next.specialExpression = "closed_eye_smile";
+    if (intent.emotion === "happy" && intent.tone === "excited" && intensity >= 0.9) next.specialExpression = "closed_eye_smile";
     if (intent.emotion === "crying" && intensity >= 0.62) next.specialExpression = "tears";
-    if (intent.emotion === "embarrassed" && intensity >= 0.72) next.specialExpression = "tear_drop";
+    if (intent.emotion === "embarrassed" && intent.tone === "flustered" && intensity >= 0.88) next.specialExpression = "tear_drop";
   }
   return next;
 }
@@ -738,6 +740,8 @@ function readableIntentDefaults(
       return { tone, gaze: "right", head: "tilted_right", eyes: "soft", mouth: "smile" };
     case "bashful":
       return { tone, gaze: "down_right", head: "lowered", eyes: "soft", mouth: "small_smile" };
+    case "flustered":
+      return { tone, gaze: "down_left", head: "lowered", eyes: "soft", brows: "worried", mouth: "pout" };
     case "determined":
       return { tone, head: "raised", eyes: "wide", brows: "angry", mouth: "pressed" };
     case "disappointed":
@@ -746,6 +750,8 @@ function readableIntentDefaults(
       return { tone, eyes: "wide", brows: "worried", mouth: "open" };
     case "excited":
       return { tone, head: "raised", eyes: "wide", mouth: "smile" };
+    case "delighted":
+      return { tone, head: "raised", eyes: "wide", brows: "soft_up", mouth: "smile" };
     case "grateful":
       return { tone, gaze: "down", head: "lowered", eyes: "soft", mouth: "smile", brows: "soft_up" };
     case "amused":
@@ -805,6 +811,7 @@ function emotionIntensityFloor(emotion: EmotionName, tone: EmotionToneName | nul
     case "nervous":
       return clamp(0.54 + boost, 0.46, 0.68);
     case "excited":
+    case "delighted":
     case "startled":
     case "frustrated":
       return clamp(0.64 + boost, 0.56, 0.78);
@@ -817,6 +824,7 @@ function emotionIntensityFloor(emotion: EmotionName, tone: EmotionToneName | nul
       return clamp(0.52 + boost, 0.44, 0.66);
     case "relieved":
     case "bashful":
+    case "flustered":
     case "determined":
     case "disappointed":
       return clamp(0.5 + boost, 0.42, 0.64);
@@ -1134,7 +1142,7 @@ function softenFinishedSemanticIntent(intent: EmotionIntent, assistantText: stri
 }
 
 const EMOTION_COMPATIBILITY: Partial<Record<EmotionName, EmotionName[]>> = {
-  happy: ["teasing", "shy", "embarrassed"],
+  happy: ["teasing", "shy", "embarrassed", "surprised"],
   shy: ["embarrassed", "happy", "teasing"],
   embarrassed: ["shy", "happy", "teasing"],
   sad: ["crying", "panic", "confused"],

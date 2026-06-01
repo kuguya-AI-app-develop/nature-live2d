@@ -184,6 +184,8 @@ function bindControls(): void {
   getElement<HTMLButtonElement>('play-focused').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'focused', brows: 'angry', mouth: 'pressed' }));
   getElement<HTMLButtonElement>('play-frustrated').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'frustrated', brows: 'angry', mouth: 'pressed' }));
   getElement<HTMLButtonElement>('play-startled').addEventListener('click', () => playLayeredEmotion({ emotion: 'surprised', tone: 'startled', eyes: 'wide', mouth: 'open' }));
+  getElement<HTMLButtonElement>('play-delighted').addEventListener('click', () => playLayeredEmotion({ emotion: 'surprised', tone: 'delighted', eyes: 'wide', mouth: 'smile', head: 'raised' }));
+  getElement<HTMLButtonElement>('play-flustered').addEventListener('click', () => playLayeredEmotion({ emotion: 'embarrassed', tone: 'flustered', gaze: 'down_left', mouth: 'pout', specialExpression: 'tear_drop' }));
   getElement<HTMLButtonElement>('play-nervous').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'nervous', eyes: 'wide', mouth: 'open' }));
 }
 

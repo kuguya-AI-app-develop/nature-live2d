@@ -41,6 +41,8 @@ const TONES = [
   "apologetic",
   "frustrated",
   "startled",
+  "delighted",
+  "flustered",
 ] as const satisfies readonly EmotionToneName[];
 
 const SYSTEM_PROMPT = [
@@ -59,7 +61,7 @@ const SYSTEM_PROMPT = [
   "Prefer visible, characterful expressions over tiny subtle changes, but avoid cartoon exaggeration.",
   "Do not choose neutral when the assistant reply contains clear affective cues.",
   "Use panic for urgent concern or tense incident response, sad for empathy or disappointment, and shy for bashful praise reactions.",
-  "Use tone to refine the broad emotion: concerned for worried attention, reassuring for calm comfort, proud/excited/grateful for different joy, playful/amused for teasing laughter, skeptical for doubtful confusion, focused/determined for action, bashful for shy praise, relieved for release after tension, nervous/startled for anxious surprise, apologetic/disappointed for hurt, frustrated for irritated pressure.",
+  "Use tone to refine the broad emotion: concerned for worried attention, reassuring for calm comfort, proud/excited/grateful for different joy, delighted for positive surprise, playful/amused for teasing laughter, skeptical for doubtful confusion, focused/determined for action, bashful for shy praise, flustered for embarrassed heat, relieved for release after tension, nervous/startled for anxious surprise, apologetic/disappointed for hurt, frustrated for irritated pressure.",
   "For reassuring replies after urgent user distress, prefer a softer worried sad/confused/panic reaction; do not choose happy only because the reply is encouraging.",
   "For calming incident replies, choose tone reassuring or concerned so the character looks warm and focused rather than fully panicked.",
   "For panic, prefer wide eyes and worried brows; use squeezed_eyes only when the text explicitly implies bracing or squeezing eyes shut.",
@@ -76,9 +78,9 @@ const STREAM_SYSTEM_PROMPT = [
   "Allowed keys: emotion, tone, intensity, durationMs, specialExpression, gaze, head, eyes, brows, mouth.",
   "Allowed pose values: gaze left/right/up/down/down_left/down_right; head lowered/raised/tilted_left/tilted_right; eyes soft/wide/sleepy; brows soft_up/angry/worried; mouth small_smile/smile/open/frown/pout/pressed/pucker/funnel/tongue/shrug.",
   "When Assistant text is present, track the latest Assistant tone as the current display; User text is context for the first reaction.",
-  "Use specialExpression closed_eye_smile for strong happy, tears for crying, tear_drop for embarrassment. Use squeezed_eyes only for explicit bracing or squeezing eyes shut, not ordinary panic.",
+  "Use specialExpression closed_eye_smile only for strongly excited happiness, tears for crying, and tear_drop only for intense explicit embarrassment. Use squeezed_eyes only for explicit bracing or squeezing eyes shut, not ordinary panic.",
   "For reassurance after urgent user distress, use softer worried sad/confused/panic rather than happy unless the reply is clearly celebratory.",
-  "Use tone concerned/reassuring/proud/playful/bashful/relieved/nervous/determined/disappointed/excited/grateful/amused/skeptical/focused/apologetic/frustrated/startled to make the same emotion visibly different.",
+  "Use tone concerned/reassuring/proud/playful/bashful/flustered/relieved/nervous/determined/disappointed/excited/delighted/grateful/amused/skeptical/focused/apologetic/frustrated/startled to make the same emotion visibly different.",
   "Prefer visible, characterful reactions. Include pose keys in each object when they improve readability.",
   "Do not output raw Live2D parameter IDs, keyframes, animation curves, or pose sequences.",
   "Do not choose neutral when there is clear urgency, sadness, praise, embarrassment, surprise, or teasing.",
@@ -159,6 +161,10 @@ const TONE_ALIASES: Record<string, EmotionToneName> = {
   挫败: "frustrated",
   吓到: "startled",
   惊吓: "startled",
+  惊喜: "delighted",
+  欣喜: "delighted",
+  慌乱: "flustered",
+  手足无措: "flustered",
 };
 
 export type OpenAICompatibleEmotionProvider = "auto" | "openai" | "mimo" | "custom";

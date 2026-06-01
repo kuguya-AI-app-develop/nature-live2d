@@ -120,6 +120,7 @@ function applyFacialLayer(
 
   switch (tone ?? emotion) {
     case "excited":
+    case "delighted":
     case "happy":
       add(params, context, "ParamEyeSmile_Happy_L", 0.1 * softPulse);
       add(params, context, "ParamEyeSmile_Happy_R", 0.1 * softPulse);
@@ -145,6 +146,7 @@ function applyFacialLayer(
       add(params, context, "ParamCheek", 0.06 * softPulse);
       break;
     case "bashful":
+    case "flustered":
     case "shy":
     case "embarrassed":
       add(params, context, "ParamCheek", 0.14 * softPulse);
@@ -215,6 +217,7 @@ function applyAccentLayer(
   const { emotion, tone } = context.intent;
   switch (tone ?? emotion) {
     case "excited":
+    case "delighted":
     case "happy":
       add(params, context, "ParamMouthOpenY", 0.16 * amount);
       add(params, context, "ParamJawOpen", 0.08 * amount);
@@ -232,6 +235,7 @@ function applyAccentLayer(
       add(params, context, "ParamAngleZ", -1.2 * amount);
       break;
     case "bashful":
+    case "flustered":
     case "shy":
     case "embarrassed":
       add(params, context, "ParamCheek", 0.2 * amount);
@@ -361,12 +365,14 @@ function phaseLayerWeight(phase: RealtimeMotionLayerPhase): number {
 function emotionLayerWeight(emotion: EmotionName, tone: EmotionToneName | null): number {
   switch (tone) {
     case "excited":
+    case "delighted":
     case "startled":
     case "frustrated":
       return 1.22;
     case "playful":
     case "amused":
     case "nervous":
+    case "flustered":
       return 1.14;
     case "focused":
     case "skeptical":

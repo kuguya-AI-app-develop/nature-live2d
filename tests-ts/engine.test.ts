@@ -376,7 +376,7 @@ describe("TypeScript Live2DExpressionEngine", () => {
 
     expect(excited.params.ParamExpression_3 ?? 0).toBe(0);
     expect(excited.params.ParamEyeLOpen ?? 0).toBeGreaterThan(0.95);
-    expect(proud.params.ParamExpression_3 ?? 0).toBe(1);
+    expect(proud.params.ParamExpression_3 ?? 0).toBe(0);
     expect(reassuring.params.ParamJawOpen ?? 0).toBeLessThan(0.18);
     expect(reassuring.params.ParamMouthOpenY ?? 0).toBeLessThan(0.24);
     expect(nervous.params.ParamJawOpen ?? 0).toBeGreaterThan(0.5);
@@ -1074,6 +1074,27 @@ describe("TypeScript Live2DExpressionEngine", () => {
     expect(teasing.emotion).toBe("teasing");
   });
 
+  it("lets the first streamed semantic event correct a non-critical local guess", async () => {
+    const engine = await Live2DExpressionEngine.fromNodeDirectory(YACHIYO_DIR);
+    const director = createLive2DRealtimeMotionDirector({
+      engine,
+      onFrame: () => {},
+      requestFrame: () => 1,
+      cancelFrame: () => {},
+      now: () => 0,
+    });
+
+    director.startTurn({ promptText: "太棒了，这次发布成功了。" });
+    const local = director.lastMeta;
+    const corrected = director.pushSemanticIntent({ emotion: "surprised", tone: "delighted", intensity: 0.86 });
+    director.stop();
+
+    expect(local?.emotion).toBe("happy");
+    expect(corrected.semanticEmotion).toBe("surprised");
+    expect(corrected.emotion).toBe("surprised");
+    expect(corrected.tone).toBe("delighted");
+  });
+
   it("does not let incompatible semantic flow override high-priority local emotion", async () => {
     const engine = await Live2DExpressionEngine.fromNodeDirectory(YACHIYO_DIR);
     const director = createLive2DRealtimeMotionDirector({
@@ -1343,6 +1364,30 @@ describe("TypeScript Live2DExpressionEngine", () => {
     expect(presetIds).toContain("confused_skeptical");
     expect(excited?.presetId).toBe("happy_excited");
     expect(reassuring?.presetId).toBe("sad_reassuring");
+  });
+
+  it("keeps positive surprise and flustered embarrassment visually distinct from nearby presets", async () => {
+    const engine = await Live2DExpressionEngine.fromNodeDirectory(YACHIYO_DIR);
+    const startledPreset = resolveEmotionSignalPreset({ emotion: "surprised", tone: "startled" });
+    const delightedPreset = resolveEmotionSignalPreset({ emotion: "surprised", tone: "delighted" });
+    const bashfulPreset = resolveEmotionSignalPreset({ emotion: "shy", tone: "bashful" });
+    const flusteredPreset = resolveEmotionSignalPreset({ emotion: "embarrassed", tone: "flustered" });
+
+    expect(startledPreset?.presetId).toBe("surprised_startled");
+    expect(delightedPreset?.presetId).toBe("surprised_delighted");
+    expect(bashfulPreset?.presetId).toBe("shy_bashful");
+    expect(flusteredPreset?.presetId).toBe("embarrassed_bashful");
+
+    const startled = engine.generateFromIntent({ ...startledPreset!, intensity: 0.9 });
+    const delighted = engine.generateFromIntent({ ...delightedPreset!, intensity: 0.9 });
+    const bashful = engine.generateFromIntent({ ...bashfulPreset!, intensity: 0.9 });
+    const flustered = engine.generateFromIntent({ ...flusteredPreset!, intensity: 0.9 });
+
+    expect(delighted.params.ParamMouthForm ?? 0).toBeGreaterThan(startled.params.ParamMouthForm ?? 0);
+    expect(delighted.params.ParamEyeSmile_Happy_L ?? 0).toBeGreaterThan(0.35);
+    expect(startled.params.ParamPupilQuake_L1 ?? 0).toBeGreaterThan(delighted.params.ParamPupilQuake_L1 ?? 0);
+    expect(Math.abs(flustered.params.ParamMouthX ?? 0)).toBeGreaterThan(Math.abs(bashful.params.ParamMouthX ?? 0) + 0.08);
+    expect(flustered.params.ParamMouthShrug ?? 0).toBeGreaterThan(bashful.params.ParamMouthShrug ?? 0);
   });
 
   it("stabilizes short-lived emotion changes before switching", () => {

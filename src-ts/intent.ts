@@ -33,6 +33,8 @@ const TONES = new Set<EmotionToneName>([
   "apologetic",
   "frustrated",
   "startled",
+  "delighted",
+  "flustered",
 ]);
 
 export function normalizeIntent(intent: EmotionIntent): NormalizedEmotionIntent {

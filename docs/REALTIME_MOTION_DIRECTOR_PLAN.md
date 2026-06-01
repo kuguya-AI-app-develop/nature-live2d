@@ -224,7 +224,7 @@ The demo should show:
 - `expressiveness`: `1.72`.
 - `bodyMotion`: `true`.
 - LLM output remains semantic JSON only; it must not include raw Live2D parameter IDs or keyframe sequences.
-- Emotion output is layered: `emotion` is broad, optional `tone` refines the reaction with concerned, reassuring, relieved, proud, playful, bashful, determined, disappointed, nervous, excited, grateful, amused, skeptical, focused, apologetic, frustrated, or startled motion profiles.
+- Emotion output is layered: `emotion` is broad, optional `tone` refines the reaction with concerned, reassuring, relieved, proud, playful, bashful, flustered, determined, disappointed, nervous, excited, delighted, grateful, amused, skeptical, focused, apologetic, frustrated, or startled motion profiles.
 
 ## Non-goals
 

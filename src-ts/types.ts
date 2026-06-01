@@ -36,7 +36,9 @@ export type EmotionToneName =
   | "focused"
   | "apologetic"
   | "frustrated"
-  | "startled";
+  | "startled"
+  | "delighted"
+  | "flustered";
 
 export interface EmotionIntent {
   emotion: EmotionName;

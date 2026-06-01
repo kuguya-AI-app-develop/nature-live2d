@@ -68,12 +68,7 @@ export function resolveSpecialExpression(intent: NormalizedEmotionIntent): Speci
   if (
     (intent.emotion === "happy" || intent.emotion === "teasing") &&
     intent.intensity >= 0.8 &&
-    (
-      intent.eyes === "closed_smile"
-      || intent.tone === "proud"
-      || intent.tone === "relieved"
-      || intent.tone === "grateful"
-    )
+    intent.eyes === "closed_smile"
   ) {
     return "closed_eye_smile";
   }

@@ -29,6 +29,20 @@ The remaining gap is expressiveness:
 - Motion amplitude is still conservative compared with the model's visual capacity.
 - Expression effects need to be used deliberately, not just eye/mouth/head numeric changes.
 
+## Current Checkpoint
+
+The first expression-expansion pass now includes:
+
+- 30 default local signal presets.
+- Model inspection for optional eye, tear, emotion, breath, and fire effects.
+- Layered realtime face, speech, gaze, body, breath, accent, and mask motion.
+- Separate `delighted` and `startled` tones for positive surprise versus alarm.
+- Separate `flustered` and `bashful` tones for embarrassed heat versus ordinary shyness.
+- Immediate first-chunk semantic correction for non-critical local guesses.
+- Calming `panic/reassuring` motion that reduces pupil quake after an incident peak.
+
+The next pass should expand preset families from real dialogue samples and tune model-specific motion manifests without hard-coding Yachiyo-only behavior into the public engine.
+
 ## Parameter Strategy
 
 Treat model inspection as the source of truth:
