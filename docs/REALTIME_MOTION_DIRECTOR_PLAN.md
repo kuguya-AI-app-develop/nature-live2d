@@ -25,10 +25,16 @@ const director = createLive2DRealtimeMotionDirector({
   engine,
   model,
   runtime: "pixi-live2d-display",
+  applyTarget: "all",
+  applyTiming: "immediate",
   semanticAnalyzer,
-  stability: 0.62,
-  smoothingMs: 220,
-  expressiveness: 2.05,
+  stability: 0.68,
+  smoothingMs: 360,
+  transitionMs: 820,
+  reactionHoldMs: 1900,
+  semanticReactionHoldMs: 3200,
+  performanceBeatMs: 1360,
+  expressiveness: 3.2,
 });
 
 director.startTurn({ promptText });
@@ -55,10 +61,14 @@ Motion should be driven by semantic layers and runtime motion layers:
 
 - **Base motion**: breathing, subtle body sway, gaze hold, and small head movement. It starts immediately at `startTurn`.
 - **Local affect**: keyword, punctuation, and partial-reply cues. It updates during `pushAssistantDelta` and has low confidence by default.
-- **Semantic calibration**: asynchronous or streamed LLM analyzer results. It corrects emotion, tone, and intensity over time without direct snapping.
-- **Runtime frame layers**: core target expression, facial micro expression, speech mouth motion, attention/gaze motion, body pose, breath, transition accent, and expression-mask blink. These are composed every frame after model capability filtering.
+- **Semantic calibration**: asynchronous or streamed LLM analyzer results. It corrects emotion, tone, intensity, and optional whitelisted `presetId` over time without direct snapping. Analyzer prompts should prefer matching whitelisted preset ids because preset ids carry richer visible performance detail than broad emotion alone.
+- **Runtime frame layers**: core target expression, facial readability anchors, a short-lived onset contour for the first transition beat, facial micro expression, a slower segmented facial beat, speech mouth motion, attention/gaze motion, body pose, symbolic motion performance, breath, transition accent, and expression-mask blink. These are composed every frame after model capability filtering. The slower facial beat uses 2.5 to 4.3 second contours so eye, brow, cheek, mouth-corner, pupil, and tear texture can remain expressive without restarting on every streamed chunk.
+- **Optional model texture**: inspected safe controls such as richer eyelids, cheek puff, asymmetric squint, lip pucker, tongue, mouth-corner modifiers, and tear depth enrich a supported model without directly writing physics downstream parameters. Semantic intents with tone/style/preset metadata get an additional readability amplifier, and expression masks preserve stronger mapped tear or crying values instead of flattening them.
+- **Performance residence**: the first meaningful reply fragment may react immediately, but later macro expression changes use human-readable hold windows plus a candidate dwell beat. While a full face switch is held, chunks still drive speech, gaze, breath, and facial micro motion. Broad emotion or explicit expression-mask changes start a new onset/accent beat; same-emotion tone, pose, and facial-style refinements glide toward the new target without restarting the full transition. Streamed semantic candidates must repeat or remain stable across the beat before replacing the active performance, so token-level JSON churn does not become visible face flipping.
 
-Local affect is backed by an exported preset catalog. Host apps can inspect `getDefaultEmotionSignalPresets()`, override estimator rules, or call `resolveEmotionSignalPreset(intent)` to map streamed `emotion + tone` results back to the same preset ids used by local prediction.
+Local affect is backed by an exported preset catalog, and the OpenAI-compatible analyzer advertises the same catalog to the LLM. Host apps can inspect `getDefaultEmotionSignalPresets()`, override estimator rules, call `resolveEmotionSignalPreset(intent)` to find a matching preset id, call `materializeEmotionSignalPreset(intent)` to expand an explicit preset id into declared tone, facial style, motion style, gaze, head, eye, brow, mouth, and optional expression defaults before mapping, or call `resolveMotionPerformanceStyle(intent)` to infer a reusable capability-safe movement motif. Analyzer output keeps only known preset ids and drops hallucinated ids.
+
+The reusable `applyRealtimeMotionLayers(...)` helper should include pose and breath output too, so host apps with their own runtime adapter can reuse the same body motion without adopting the full director.
 
 ### 3. State Machine
 
@@ -106,10 +116,12 @@ Local affect is allowed to move the model immediately, but with conservative int
 
 The semantic analyzer should run in the background on `prompt + partial reply`:
 
-- Trigger every `semanticIntervalMs`, default `700`.
+- Trigger every `semanticIntervalMs`, default `800`.
 - Trigger at sentence boundaries when useful.
 - Coalesce pending analysis so only the latest text is analyzed after an in-flight request completes.
+- When the assistant stream finishes, supersede older partial-reply requests immediately and consume one final resting intent.
 - Ignore stale analyzer results from older turns.
+- Local reply matching should favor the newest reply fragment over the full accumulated reply, so current chunks can move the face before semantic calibration finishes.
 
 Semantic results should be blended into the current state:
 
@@ -125,7 +137,7 @@ The director must not alternate gaze or head direction per token or per keyframe
 - Low-frequency micro motion.
 - Per-parameter speed limits.
 - Acceleration damping.
-- Configurable `stability`, default `0.74`.
+- Configurable `stability`, default `0.68`.
 
 Body motion should be part of the same frame generation:
 
@@ -147,7 +159,11 @@ interface Live2DRealtimeMotionDirectorOptions extends Live2DApplyOptions {
   semanticAnalyzer?: EmotionAnalyzer;
   semanticStreamAnalyzer?: EmotionStreamAnalyzer;
   semanticIntervalMs?: number;
+  transitionMs?: number;
   smoothingMs?: number;
+  reactionHoldMs?: number;
+  semanticReactionHoldMs?: number;
+  performanceBeatMs?: number;
   stability?: number;
   expressiveness?: number;
   bodyMotion?: boolean;
@@ -189,6 +205,8 @@ The demo should show:
 - current semantic emotion if available
 - whether semantic calibration is pending
 
+For a persistent local demo, load provider settings from the Git-ignored `.env.local` file at Vite startup. The API key remains server-side and is not exposed to browser code.
+
 ## Test Plan
 
 ### Unit Tests
@@ -218,13 +236,20 @@ The demo should show:
 ## Defaults
 
 - Strategy: local first, asynchronous LLM calibration.
-- `semanticIntervalMs`: `700`.
-- `smoothingMs`: `260`.
-- `stability`: `0.74`.
-- `expressiveness`: `1.72`.
+- `semanticIntervalMs`: `1250`.
+- `smoothingMs`: `360`.
+- `transitionMs`: `820`.
+- `reactionHoldMs`: `1900`.
+- `semanticReactionHoldMs`: `3200`.
+- `performanceBeatMs`: `1360`.
+- `stability`: `0.68`.
+- `expressiveness`: `3.2`.
 - `bodyMotion`: `true`.
-- LLM output remains semantic JSON only; it must not include raw Live2D parameter IDs or keyframe sequences.
-- Emotion output is layered: `emotion` is broad, optional `tone` refines the reaction with concerned, reassuring, relieved, proud, playful, bashful, flustered, determined, disappointed, nervous, excited, delighted, grateful, amused, skeptical, focused, apologetic, frustrated, or startled motion profiles.
+- `applyTarget`: host-selectable runtime write target. Use `"all"` with `pixi-live2d-display` when a wrapper/core ordering issue may hide visible expression changes; use `"core"` when the host has confirmed the core model is the only effective setter.
+- `applyTiming`: host-selectable runtime write timing. Use `"immediate"` when the host calls the director from the runtime ticker after the model update; use `"before-model-update"` only when the runtime's event ordering has been verified for that integration.
+- LLM output remains semantic JSON only; it may include whitelisted `presetId` values but must not include raw Live2D parameter IDs or keyframe sequences.
+- Emotion output is layered: `emotion` is broad, optional `tone` refines the reaction, and optional symbolic `facialStyle` selects an inspected safe-control face texture without exposing raw model parameter ids.
+- Expression masks remain sparse accents: ordinary high-intensity `happy + excited` stays open-eyed, while a celebration preset or explicit intent can request `closed_eye_smile`.
 
 ## Non-goals
 

@@ -79,8 +79,27 @@ export function applySpecialExpression(
   params: Record<string, number>,
   specialExpression: string,
 ): Record<string, number> {
-  return {
-    ...params,
-    ...(EXPRESSION_LAYER_PRESETS[specialExpression] ?? EXPRESSION_LAYER_PRESETS.none),
-  };
+  const next = { ...params };
+  const preset = EXPRESSION_LAYER_PRESETS[specialExpression] ?? EXPRESSION_LAYER_PRESETS.none;
+  for (const [id, value] of Object.entries(preset)) {
+    const current = next[id];
+    if (
+      isAdditiveExpressionEffect(id)
+      && typeof current === "number"
+      && Math.sign(current) === Math.sign(value)
+      && Math.abs(current) > Math.abs(value)
+    ) {
+      continue;
+    }
+    next[id] = value;
+  }
+  return next;
+}
+
+function isAdditiveExpressionEffect(id: string): boolean {
+  return id.startsWith("ParamTear")
+    || id.startsWith("ParamCryDown")
+    || id.startsWith("ParamPupilQuake")
+    || id === "ParamEyeCircles"
+    || id === "fire";
 }

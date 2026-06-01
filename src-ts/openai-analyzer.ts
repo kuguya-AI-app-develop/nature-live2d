@@ -1,4 +1,15 @@
-import type { EmotionAnalyzer, EmotionIntent, EmotionName, EmotionStreamAnalyzer, EmotionToneName, SpecialExpressionName } from "./types.js";
+import { getDefaultEmotionSignalPresets } from "./emotion-signal.js";
+import { MOTION_PERFORMANCE_STYLES, resolveMotionPerformanceStyle } from "./motion-style.js";
+import type {
+  EmotionAnalyzer,
+  EmotionIntent,
+  EmotionName,
+  EmotionStreamAnalyzer,
+  EmotionToneName,
+  FacialPerformanceStyleName,
+  MotionPerformanceStyleName,
+  SpecialExpressionName,
+} from "./types.js";
 
 const EMOTIONS = [
   "neutral",
@@ -43,7 +54,47 @@ const TONES = [
   "startled",
   "delighted",
   "flustered",
+  "celebratory",
+  "tender",
+  "wistful",
+  "guarded",
 ] as const satisfies readonly EmotionToneName[];
+
+const FACIAL_STYLES = [
+  "radiant",
+  "bright",
+  "grateful",
+  "gentle",
+  "relieved",
+  "playful_smirk",
+  "mischievous",
+  "flustered",
+  "skeptical",
+  "concerned",
+  "shaken",
+  "frozen",
+  "bracing",
+  "determined",
+  "hurt",
+  "sleepy",
+  "yawning",
+] as const satisfies readonly FacialPerformanceStyleName[];
+
+const DEFAULT_PRESETS = getDefaultEmotionSignalPresets();
+const DEFAULT_PRESET_IDS = DEFAULT_PRESETS
+  .map((preset) => preset.presetId)
+  .filter((presetId): presetId is string => Boolean(presetId));
+const DEFAULT_PRESET_CATALOG = DEFAULT_PRESETS
+  .filter((preset) => Boolean(preset.presetId))
+  .map((preset) => `${preset.presetId}=${preset.emotion}/${preset.tone ?? "plain"}/${preset.facialStyle ?? "default"}/${resolveMotionPerformanceStyle(preset) ?? "still"}/${preset.specialExpression ?? "none"}`)
+  .join(", ");
+const DEFAULT_PRESET_ID_SET = new Set(DEFAULT_PRESET_IDS);
+const PRESET_ID_GUIDANCE = [
+  "Prefer choosing a presetId when one default preset matches the dialogue. presetId gives the runtime a richer visible expression than broad emotion/tone/style alone.",
+  `Allowed presetId values: ${DEFAULT_PRESET_IDS.join(", ")}.`,
+  `Allowed presetId performance catalog: ${DEFAULT_PRESET_CATALOG}.`,
+  "Do not invent presetId values. Omit presetId when none of the allowed ids fits.",
+].join("\n");
 
 const SYSTEM_PROMPT = [
   "You convert dialogue into one semantic Live2D expression intent.",
@@ -53,16 +104,21 @@ const SYSTEM_PROMPT = [
   "durationMs should be 800 to 2200.",
   `specialExpression may be one of: ${SPECIAL_EXPRESSIONS.join(", ")}.`,
   `tone is optional and may be one of: ${TONES.join(", ")}.`,
+  `facialStyle is optional and may be one of: ${FACIAL_STYLES.join(", ")}.`,
+  `motionStyle is optional and may be one of: ${MOTION_PERFORMANCE_STYLES.join(", ")}.`,
+  PRESET_ID_GUIDANCE,
   "Do not output raw Live2D parameter IDs, keyframes, animation curves, or pose sequences.",
-  "Prefer emotion, tone, intensity, durationMs, specialExpression, and summary.",
+  "Prefer emotion, tone, presetId, facialStyle, motionStyle, intensity, durationMs, specialExpression, and summary.",
   "Include gaze, head, eyes, brows, or mouth when they help make the reaction visibly readable.",
   "Allowed pose values: gaze left/right/up/down/down_left/down_right; head lowered/raised/tilted_left/tilted_right; eyes soft/wide/sleepy; brows soft_up/angry/worried; mouth small_smile/smile/open/frown/pout/pressed/pucker/funnel/tongue/shrug.",
   "When both User and Assistant are present, choose the Live2D character's current visible reaction to the latest Assistant reply; use User text as context, not as the final display by itself.",
   "Prefer visible, characterful expressions over tiny subtle changes, but avoid cartoon exaggeration.",
+  "For ordinary dialogue with emotion, prefer intensity 0.68 to 0.95. Use lower intensity only for deliberately sleepy, quiet, or restrained moments.",
   "Do not choose neutral when the assistant reply contains clear affective cues.",
   "Use panic for urgent concern or tense incident response, sad for empathy or disappointment, and shy for bashful praise reactions.",
-  "Use tone to refine the broad emotion: concerned for worried attention, reassuring for calm comfort, proud/excited/grateful for different joy, delighted for positive surprise, playful/amused for teasing laughter, skeptical for doubtful confusion, focused/determined for action, bashful for shy praise, flustered for embarrassed heat, relieved for release after tension, nervous/startled for anxious surprise, apologetic/disappointed for hurt, frustrated for irritated pressure.",
+  "Use tone to refine the broad emotion: concerned for worried attention, reassuring for calm comfort, proud/excited/grateful/celebratory for different joy, delighted for positive surprise, tender for warm affection, playful/amused for teasing laughter, skeptical for doubtful confusion, focused/determined/guarded for action or caution, bashful for shy praise, flustered for embarrassed heat, relieved for release after tension, wistful for quiet longing, nervous/startled for anxious surprise, apologetic/disappointed for hurt, frustrated for irritated pressure.",
   "For reassuring replies after urgent user distress, prefer a softer worried sad/confused/panic reaction; do not choose happy only because the reply is encouraging.",
+  "For comforting self-blame or apology, avoid happy; prefer embarrassed/apologetic, shy/reassuring, or sad/reassuring.",
   "For calming incident replies, choose tone reassuring or concerned so the character looks warm and focused rather than fully panicked.",
   "For panic, prefer wide eyes and worried brows; use squeezed_eyes only when the text explicitly implies bracing or squeezing eyes shut.",
 ].join("\n");
@@ -70,17 +126,25 @@ const SYSTEM_PROMPT = [
 const STREAM_SYSTEM_PROMPT = [
   "Low-latency Live2D emotion director.",
   "Output NDJSON only: compact JSON lines, no markdown, no prose, no arrays.",
-  "Emit 1 to 3 objects. The first object must be immediate and short.",
+  "Emit 1 object for most partial streams. Emit a second object only for a clear sustained semantic turn, not for token-level wording drift.",
   `emotion must be one of: ${EMOTIONS.join(", ")}.`,
-  "Use lowercase English emotion tokens exactly. intensity is 0 to 1. durationMs is 500 to 1600.",
+  "Use lowercase English emotion tokens exactly. intensity is 0 to 1. durationMs is 900 to 2200 for partial streams.",
   `specialExpression may be one of: ${SPECIAL_EXPRESSIONS.join(", ")}.`,
   `tone is optional and may be one of: ${TONES.join(", ")}.`,
-  "Allowed keys: emotion, tone, intensity, durationMs, specialExpression, gaze, head, eyes, brows, mouth.",
+  `facialStyle is optional and may be one of: ${FACIAL_STYLES.join(", ")}.`,
+  `motionStyle is optional and may be one of: ${MOTION_PERFORMANCE_STYLES.join(", ")}.`,
+  PRESET_ID_GUIDANCE,
+  "Allowed keys: emotion, tone, presetId, facialStyle, motionStyle, intensity, durationMs, specialExpression, gaze, head, eyes, brows, mouth.",
   "Allowed pose values: gaze left/right/up/down/down_left/down_right; head lowered/raised/tilted_left/tilted_right; eyes soft/wide/sleepy; brows soft_up/angry/worried; mouth small_smile/smile/open/frown/pout/pressed/pucker/funnel/tongue/shrug.",
   "When Assistant text is present, track the latest Assistant tone as the current display; User text is context for the first reaction.",
+  "When input contains [Assistant stream complete], emit exactly one object for the final resting expression. Do not emit a trajectory.",
+  "Treat chunks as evidence, not animation keyframes. Prefer one clear visible performance beat while the partial reply is still developing.",
+  "For ordinary dialogue with emotion, prefer intensity 0.68 to 0.95. Use lower intensity only for deliberately sleepy, quiet, or restrained moments.",
+  "Do not emit a new object for every small wording change. Emit a second object only when the visible reaction has clearly shifted and should hold for at least about 2.2 seconds.",
   "Use specialExpression closed_eye_smile only for strongly excited happiness, tears for crying, and tear_drop only for intense explicit embarrassment. Use squeezed_eyes only for explicit bracing or squeezing eyes shut, not ordinary panic.",
   "For reassurance after urgent user distress, use softer worried sad/confused/panic rather than happy unless the reply is clearly celebratory.",
-  "Use tone concerned/reassuring/proud/playful/bashful/flustered/relieved/nervous/determined/disappointed/excited/delighted/grateful/amused/skeptical/focused/apologetic/frustrated/startled to make the same emotion visibly different.",
+  "For comforting self-blame or apology, prefer embarrassed/apologetic, shy/reassuring, or sad/reassuring; do not choose happy just because the reply is kind.",
+  "Use tone concerned/reassuring/proud/playful/bashful/flustered/relieved/nervous/determined/disappointed/excited/delighted/celebratory/tender/wistful/guarded/grateful/amused/skeptical/focused/apologetic/frustrated/startled to make the same emotion visibly different.",
   "Prefer visible, characterful reactions. Include pose keys in each object when they improve readability.",
   "Do not output raw Live2D parameter IDs, keyframes, animation curves, or pose sequences.",
   "Do not choose neutral when there is clear urgency, sadness, praise, embarrassment, surprise, or teasing.",
@@ -126,7 +190,6 @@ const TONE_ALIASES: Record<string, EmotionToneName> = {
   关心: "concerned",
   安抚: "reassuring",
   安慰: "reassuring",
-  温柔: "reassuring",
   放心: "relieved",
   松口气: "relieved",
   如释重负: "relieved",
@@ -165,6 +228,40 @@ const TONE_ALIASES: Record<string, EmotionToneName> = {
   欣喜: "delighted",
   慌乱: "flustered",
   手足无措: "flustered",
+  庆祝: "celebratory",
+  欢呼: "celebratory",
+  温柔: "tender",
+  温暖: "tender",
+  舍不得: "wistful",
+  怀念: "wistful",
+  警惕: "guarded",
+  戒备: "guarded",
+};
+
+const TONE_EMOTION_FALLBACKS: Record<EmotionToneName, EmotionName> = {
+  concerned: "sad",
+  reassuring: "sad",
+  relieved: "happy",
+  proud: "happy",
+  playful: "teasing",
+  bashful: "shy",
+  determined: "angry",
+  disappointed: "sad",
+  nervous: "panic",
+  excited: "happy",
+  grateful: "happy",
+  amused: "teasing",
+  skeptical: "confused",
+  focused: "confused",
+  apologetic: "embarrassed",
+  frustrated: "angry",
+  startled: "surprised",
+  delighted: "surprised",
+  flustered: "embarrassed",
+  celebratory: "happy",
+  tender: "shy",
+  wistful: "sad",
+  guarded: "angry",
 };
 
 export type OpenAICompatibleEmotionProvider = "auto" | "openai" | "mimo" | "custom";
@@ -236,7 +333,7 @@ export class OpenAICompatibleEmotionAnalyzer implements EmotionAnalyzer, Emotion
             role: "user",
             content: [
               "Analyze this dialogue or assistant reply for the Live2D character reaction.",
-              "Return keys: emotion, tone, intensity, durationMs, specialExpression, summary.",
+              "Return keys: emotion, tone, presetId, facialStyle, motionStyle, intensity, durationMs, specialExpression, summary.",
               "Optional keys when strongly implied: gaze, head, eyes, brows, mouth.",
               "",
               text,
@@ -260,6 +357,7 @@ export class OpenAICompatibleEmotionAnalyzer implements EmotionAnalyzer, Emotion
   }
 
   async *stream(text: string): AsyncGenerator<OpenAICompatibleEmotionStreamEvent> {
+    const streamComplete = text.includes("[Assistant stream complete]");
     const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -277,7 +375,9 @@ export class OpenAICompatibleEmotionAnalyzer implements EmotionAnalyzer, Emotion
             role: "user",
             content: [
               "Analyze this dialogue for a smooth Live2D emotional reaction.",
-              "Return NDJSON emotion events now. The first object should be the immediate visible reaction.",
+              streamComplete
+                ? "Return exactly one NDJSON emotion event for the final resting expression."
+                : "Return NDJSON emotion events now. The first object should be the immediate visible reaction; emit another only for a stable visible beat change.",
               "",
               text,
             ].join("\n"),
@@ -431,10 +531,11 @@ function consumeJsonObjects(buffer: string, onObject: (object: Record<string, un
 }
 
 function normalizeAnalyzerPayload(payload: Record<string, unknown>): EmotionIntent {
+  const tone = normalizeTone(payload.tone ?? payload.mood ?? payload.layer ?? payload.style);
   return {
-    emotion: normalizeEmotion(payload.emotion),
-    tone: normalizeTone(payload.tone ?? payload.mood ?? payload.layer ?? payload.style),
-    presetId: stringOrNull(payload.presetId ?? payload.preset_id),
+    emotion: normalizeEmotion(payload.emotion, tone),
+    tone,
+    presetId: normalizePresetId(payload.presetId ?? payload.preset_id),
     presetLabel: stringOrNull(payload.presetLabel ?? payload.preset_label),
     intensity: normalizeIntensity(payload.intensity),
     durationMs: normalizeDuration(payload.durationMs),
@@ -443,14 +544,19 @@ function normalizeAnalyzerPayload(payload: Record<string, unknown>): EmotionInte
     eyes: stringOrNull(payload.eyes),
     brows: stringOrNull(payload.brows),
     mouth: stringOrNull(payload.mouth),
+    facialStyle: normalizeFacialStyle(payload.facialStyle ?? payload.facial_style),
+    motionStyle: normalizeMotionStyle(payload.motionStyle ?? payload.motion_style),
     specialExpression: normalizeSpecialExpression(payload.specialExpression),
   };
 }
 
-function normalizeEmotion(value: unknown): EmotionName {
+function normalizeEmotion(value: unknown, fallbackTone: EmotionToneName | null = null): EmotionName {
   const text = String(value || "").trim().toLowerCase();
   if ((EMOTIONS as readonly string[]).includes(text)) return text as EmotionName;
-  return EMOTION_ALIASES[text] ?? "neutral";
+  const aliasedEmotion = EMOTION_ALIASES[text];
+  if (aliasedEmotion) return aliasedEmotion;
+  const tone = normalizeTone(text) ?? fallbackTone;
+  return tone ? TONE_EMOTION_FALLBACKS[tone] : "neutral";
 }
 
 function normalizeSpecialExpression(value: unknown): SpecialExpressionName | null {
@@ -459,11 +565,29 @@ function normalizeSpecialExpression(value: unknown): SpecialExpressionName | nul
   return (SPECIAL_EXPRESSIONS as readonly string[]).includes(text) ? text as SpecialExpressionName : null;
 }
 
+function normalizeFacialStyle(value: unknown): FacialPerformanceStyleName | null {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return null;
+  return (FACIAL_STYLES as readonly string[]).includes(text) ? text as FacialPerformanceStyleName : null;
+}
+
+function normalizeMotionStyle(value: unknown): MotionPerformanceStyleName | null {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return null;
+  return (MOTION_PERFORMANCE_STYLES as readonly string[]).includes(text) ? text as MotionPerformanceStyleName : null;
+}
+
 function normalizeTone(value: unknown): EmotionToneName | null {
   const text = String(value || "").trim().toLowerCase();
   if (!text) return null;
   if ((TONES as readonly string[]).includes(text)) return text as EmotionToneName;
   return TONE_ALIASES[text] ?? null;
+}
+
+function normalizePresetId(value: unknown): string | null {
+  const presetId = stringOrNull(value);
+  if (!presetId) return null;
+  return DEFAULT_PRESET_ID_SET.has(presetId) ? presetId : null;
 }
 
 function normalizeIntensity(value: unknown): number {

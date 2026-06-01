@@ -1,6 +1,10 @@
 export { MockEmotionAnalyzer } from "./analyzer.js";
 export { YACHIYO_MAIN_CONTROLS } from "./defaults.js";
 export {
+  MOTION_PERFORMANCE_STYLES,
+  resolveMotionPerformanceStyle,
+} from "./motion-style.js";
+export {
   Live2DExpressionEngine,
   type GenerateEmotionOptions,
   type GenerateNaturalTimelineOptions,
@@ -40,6 +44,7 @@ export {
   createLive2DExpressionOrchestrator,
   estimateEmotionSignal,
   getDefaultEmotionSignalPresets,
+  materializeEmotionSignalPreset,
   resolveEmotionSignalPreset,
   type EmotionIntentBlendOptions,
   type EmotionIntentStabilizerOptions,
@@ -81,6 +86,10 @@ export {
   type Live2DParameterTarget,
   type Live2DParameterApplier,
   type Live2DFrameCallback,
+  type Live2DParameterApplyTarget,
+  type Live2DParameterApplyTiming,
+  type Live2DParameterProbeOptions,
+  type Live2DParameterProbeResult,
   type Live2DResolvedParameterId,
   type Live2DRuntimeKind,
   type Live2DTimelinePlaybackOptions,
@@ -135,6 +144,7 @@ export type {
   Live2DParameterManifest,
   Live2DParameterManifestEntry,
   Live2DParameterSafety,
+  MotionPerformanceStyleName,
   NormalizedEmotionIntent,
   ParameterMeta,
   ParameterProfile,

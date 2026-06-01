@@ -19,6 +19,44 @@ export type SpecialExpressionName =
   | "closed_eye_smile"
   | "squeezed_eyes";
 
+export type FacialPerformanceStyleName =
+  | "radiant"
+  | "bright"
+  | "grateful"
+  | "gentle"
+  | "relieved"
+  | "playful_smirk"
+  | "mischievous"
+  | "flustered"
+  | "skeptical"
+  | "concerned"
+  | "shaken"
+  | "frozen"
+  | "bracing"
+  | "determined"
+  | "hurt"
+  | "sleepy"
+  | "yawning";
+
+export type MotionPerformanceStyleName =
+  | "bounce"
+  | "laugh"
+  | "soft_sway"
+  | "peek"
+  | "squirm"
+  | "flinch"
+  | "double_take"
+  | "tremble"
+  | "brace"
+  | "lean_in"
+  | "side_eye"
+  | "withdraw"
+  | "sob"
+  | "nod"
+  | "yawn"
+  | "stern"
+  | "still";
+
 export type EmotionToneName =
   | "concerned"
   | "reassuring"
@@ -38,7 +76,11 @@ export type EmotionToneName =
   | "frustrated"
   | "startled"
   | "delighted"
-  | "flustered";
+  | "flustered"
+  | "celebratory"
+  | "tender"
+  | "wistful"
+  | "guarded";
 
 export interface EmotionIntent {
   emotion: EmotionName;
@@ -51,6 +93,8 @@ export interface EmotionIntent {
   eyes?: string | null;
   brows?: string | null;
   mouth?: string | null;
+  facialStyle?: FacialPerformanceStyleName | null;
+  motionStyle?: MotionPerformanceStyleName | null;
   specialExpression?: SpecialExpressionName | null;
   durationMs?: number;
 }
@@ -66,6 +110,8 @@ export interface NormalizedEmotionIntent {
   eyes: string | null;
   brows: string | null;
   mouth: string | null;
+  facialStyle: FacialPerformanceStyleName | null;
+  motionStyle: MotionPerformanceStyleName | null;
   specialExpression: SpecialExpressionName | null;
   durationMs: number;
 }

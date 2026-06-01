@@ -176,17 +176,38 @@ function bindControls(): void {
   getElement<HTMLButtonElement>('play-happy').addEventListener('click', () => playEmotion('happy'));
   getElement<HTMLButtonElement>('play-proud').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'proud', mouth: 'smile' }));
   getElement<HTMLButtonElement>('play-excited').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'excited', eyes: 'wide', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-beaming').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'celebratory', mouth: 'smile', head: 'raised', specialExpression: 'closed_eye_smile' }));
   getElement<HTMLButtonElement>('play-grateful').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'grateful', eyes: 'soft', mouth: 'smile' }));
+  getElement<HTMLButtonElement>('play-tender').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'tender', eyes: 'soft', brows: 'soft_up', mouth: 'small_smile' }));
   getElement<HTMLButtonElement>('play-playful').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'playful', mouth: 'smile' }));
   getElement<HTMLButtonElement>('play-amused').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'amused', eyes: 'soft', mouth: 'smile' }));
   getElement<HTMLButtonElement>('play-skeptical').addEventListener('click', () => playLayeredEmotion({ emotion: 'confused', tone: 'skeptical', brows: 'worried', mouth: 'pout' }));
   getElement<HTMLButtonElement>('play-reassuring').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'reassuring', brows: 'worried' }));
   getElement<HTMLButtonElement>('play-focused').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'focused', brows: 'angry', mouth: 'pressed' }));
   getElement<HTMLButtonElement>('play-frustrated').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'frustrated', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-guarded').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'guarded', gaze: 'left', brows: 'angry', mouth: 'pressed' }));
   getElement<HTMLButtonElement>('play-startled').addEventListener('click', () => playLayeredEmotion({ emotion: 'surprised', tone: 'startled', eyes: 'wide', mouth: 'open' }));
+  getElement<HTMLButtonElement>('play-bracing').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'startled', eyes: 'wide', mouth: 'open', specialExpression: 'squeezed_eyes' }));
   getElement<HTMLButtonElement>('play-delighted').addEventListener('click', () => playLayeredEmotion({ emotion: 'surprised', tone: 'delighted', eyes: 'wide', mouth: 'smile', head: 'raised' }));
   getElement<HTMLButtonElement>('play-flustered').addEventListener('click', () => playLayeredEmotion({ emotion: 'embarrassed', tone: 'flustered', gaze: 'down_left', mouth: 'pout', specialExpression: 'tear_drop' }));
+  getElement<HTMLButtonElement>('play-wistful').addEventListener('click', () => playLayeredEmotion({ emotion: 'sad', tone: 'wistful', gaze: 'down_left', eyes: 'soft', mouth: 'frown' }));
   getElement<HTMLButtonElement>('play-nervous').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'nervous', eyes: 'wide', mouth: 'open' }));
+  getElement<HTMLButtonElement>('play-resolve').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'determined', eyes: 'wide', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-apology').addEventListener('click', () => playLayeredEmotion({ emotion: 'embarrassed', tone: 'apologetic', gaze: 'down_left', brows: 'worried', mouth: 'small_smile' }));
+  getElement<HTMLButtonElement>('play-suspicious').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'skeptical', gaze: 'left', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-comfort').addEventListener('click', () => playLayeredEmotion({ emotion: 'sad', tone: 'tender', gaze: 'down', eyes: 'soft', brows: 'soft_up', mouth: 'small_smile' }));
+  getElement<HTMLButtonElement>('play-sparkle').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'delighted', facialStyle: 'bright', eyes: 'wide', brows: 'soft_up', mouth: 'smile', head: 'raised' }));
+  getElement<HTMLButtonElement>('play-relief-laugh').addEventListener('click', () => playLayeredEmotion({ emotion: 'happy', tone: 'relieved', facialStyle: 'relieved', eyes: 'soft', brows: 'soft_up', mouth: 'smile', specialExpression: 'closed_eye_smile' }));
+  getElement<HTMLButtonElement>('play-hypervent').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'nervous', facialStyle: 'shaken', eyes: 'wide', brows: 'worried', mouth: 'open', head: 'lowered' }));
+  getElement<HTMLButtonElement>('play-blank').addEventListener('click', () => playLayeredEmotion({ emotion: 'panic', tone: 'startled', facialStyle: 'frozen', eyes: 'wide', brows: 'worried', mouth: 'funnel' }));
+  getElement<HTMLButtonElement>('play-cover-face').addEventListener('click', () => playLayeredEmotion({ emotion: 'embarrassed', tone: 'flustered', facialStyle: 'flustered', gaze: 'down_left', eyes: 'soft', brows: 'worried', mouth: 'pout', specialExpression: 'squeezed_eyes' }));
+  getElement<HTMLButtonElement>('play-side-eye').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'skeptical', facialStyle: 'skeptical', gaze: 'left', head: 'tilted_left', eyes: 'soft', mouth: 'pout' }));
+  getElement<HTMLButtonElement>('play-tongue').addEventListener('click', () => playLayeredEmotion({ emotion: 'teasing', tone: 'amused', facialStyle: 'mischievous', gaze: 'right', head: 'tilted_right', eyes: 'soft', mouth: 'tongue' }));
+  getElement<HTMLButtonElement>('play-deadpan').addEventListener('click', () => playLayeredEmotion({ emotion: 'confused', tone: 'skeptical', facialStyle: 'skeptical', gaze: 'left', head: 'tilted_left', eyes: 'soft', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-glare').addEventListener('click', () => playLayeredEmotion({ emotion: 'angry', tone: 'guarded', facialStyle: 'determined', gaze: 'left', head: 'lowered', eyes: 'soft', brows: 'angry', mouth: 'pressed' }));
+  getElement<HTMLButtonElement>('play-tears').addEventListener('click', () => playLayeredEmotion({ emotion: 'sad', tone: 'disappointed', facialStyle: 'hurt', gaze: 'down', head: 'lowered', eyes: 'soft', brows: 'worried', mouth: 'frown' }));
+  getElement<HTMLButtonElement>('play-sob').addEventListener('click', () => playLayeredEmotion({ emotion: 'crying', tone: 'disappointed', facialStyle: 'hurt', gaze: 'down', head: 'lowered', brows: 'worried', mouth: 'open', specialExpression: 'tears' }));
+  getElement<HTMLButtonElement>('play-head-nod').addEventListener('click', () => playLayeredEmotion({ emotion: 'sleepy', tone: 'tender', facialStyle: 'sleepy', gaze: 'down', head: 'lowered', eyes: 'sleepy', mouth: 'small_smile' }));
 }
 
 async function submitChatMessage(): Promise<void> {
@@ -283,13 +304,18 @@ function createRealtimeDirector(): Live2DRealtimeMotionDirector {
     engine,
     model,
     runtime: selectedRuntime(),
+    applyTarget: 'all',
+    applyTiming: 'immediate',
     weight: selectedStreamWeight(),
     smoothingMs: selectedSmoothingMs(),
     stability: selectedStability(),
     expressiveness: selectedExpressiveness(),
-    transitionMs: Math.round(clamp(selectedDurationMs() * 0.42, 360, 760)),
+    transitionMs: Math.round(clamp(selectedDurationMs() * 0.66, 640, 1400)),
+    reactionHoldMs: Math.round(clamp(selectedDurationMs() * 1.3, 1800, 2800)),
+    semanticReactionHoldMs: Math.round(clamp(selectedDurationMs() * 2.15, 2800, 4200)),
+    performanceBeatMs: 1360,
     semanticAnalyzer: createDemoSemanticAnalyzer(),
-    semanticIntervalMs: 750,
+    semanticIntervalMs: 1250,
     requestFrame: requestPixiFrame,
     cancelFrame: cancelPixiFrame,
     onFrame: (params, meta) => {
@@ -327,7 +353,7 @@ function createDemoSemanticAnalyzer(): EmotionAnalyzer & EmotionStreamAnalyzer {
 }
 
 function stopRealtimeDirector(): void {
-  realtimeDirector?.stop();
+  realtimeDirector?.dispose();
   realtimeDirector = null;
   realtimeConfigKey = '';
   tickerFrames.forEach((callback) => app?.ticker?.remove(callback));
@@ -401,8 +427,9 @@ function formatRealtimeSignal(meta: RealtimeMotionFrameMeta): string {
   const confidence = Math.round(meta.confidence * 100);
   const tone = meta.tone ? `/${meta.tone}` : '';
   const preset = meta.presetId ? ` · preset ${meta.presetId}` : '';
+  const motion = meta.motionStyle ? ` · motion ${meta.motionStyle}` : '';
   const layerText = meta.layers
-    ? ` · layers face ${formatLayer(meta.layers.face)} speech ${formatLayer(meta.layers.speech)} accent ${formatLayer(meta.layers.accent)}`
+    ? ` · layers face ${formatLayer(meta.layers.face)} beat ${formatLayer(meta.layers.facialBeat)} performance ${formatLayer(meta.layers.performance)} speech ${formatLayer(meta.layers.speech)} accent ${formatLayer(meta.layers.accent)}`
     : '';
   const local = meta.localEmotion ? ` · local ${meta.localEmotion}${meta.localPresetId ? `/${meta.localPresetId}` : ''}` : '';
   const semantic = meta.semanticEmotion
@@ -410,7 +437,7 @@ function formatRealtimeSignal(meta: RealtimeMotionFrameMeta): string {
     : meta.semanticPending
       ? ' · semantic pending'
       : '';
-  return `${meta.phase} · ${meta.source} · ${meta.emotion}${tone}${preset} · conf ${confidence}%${layerText}${local}${semantic}`;
+  return `${meta.phase} · ${meta.source} · ${meta.emotion}${tone}${preset}${motion} · conf ${confidence}%${layerText}${local}${semantic}`;
 }
 
 function formatLayer(value: number): string {
@@ -481,7 +508,7 @@ function playTimeline(timeline: TimelineExpressionResult, llmSummary = ''): void
   stopRealtimeDirector();
   stopPlayback?.();
   const runtime = selectedRuntime();
-  stopPlayback = playTimelineOnLive2DModel(model, timeline, { runtime, weight: 0.92 }).stop;
+  stopPlayback = playTimelineOnLive2DModel(model, timeline, { runtime, applyTarget: 'core', weight: 0.92 }).stop;
   updateTimelineStatus(timeline, llmSummary);
 }
 
@@ -776,23 +803,23 @@ function selectedIntensity(): number {
 }
 
 function selectedDurationMs(): number {
-  return Math.max(400, Math.min(4000, Number(durationInput.value || 1400)));
+  return Math.max(400, Math.min(4000, Number(durationInput.value || 1600)));
 }
 
 function selectedStreamWeight(): number {
-  return clamp(Number(streamWeightInput.value || 0.95), 0.2, 1);
+  return clamp(Number(streamWeightInput.value || 1), 0.2, 1);
 }
 
 function selectedSmoothingMs(): number {
-  return Math.round(clamp(Number(smoothingInput.value || 180), 80, 900));
+  return Math.round(clamp(Number(smoothingInput.value || 380), 80, 900));
 }
 
 function selectedStability(): number {
-  return clamp(Number(stabilityInput.value || 0.55), 0, 1);
+  return clamp(Number(stabilityInput.value || 0.68), 0, 1);
 }
 
 function selectedExpressiveness(): number {
-  return clamp(Number(expressivenessInput.value || 2.05), 0.6, 2.6);
+  return clamp(Number(expressivenessInput.value || 3.2), 0.6, 3.2);
 }
 
 function countTimelineParameters(timeline: TimelineExpressionResult): number {

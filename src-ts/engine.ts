@@ -1,4 +1,5 @@
 import { MockEmotionAnalyzer } from "./analyzer.js";
+import { materializeEmotionSignalPreset } from "./emotion-signal.js";
 import { normalizeIntent } from "./intent.js";
 import { clampParams, mapIntentToParams } from "./mapper.js";
 import {
@@ -107,7 +108,9 @@ export class Live2DExpressionEngine {
   }
 
   generateFromIntent(intentInput: EmotionIntent): ExpressionResult {
-    const intent = normalizeIntent(intentInput);
+    const intent = normalizeIntent(
+      intentInput.presetId ? materializeEmotionSignalPreset(intentInput) : intentInput,
+    );
     const { params, warnings } = clampParams(mapIntentToParams(intent, this.profile), this.profile);
     return {
       emotion: intent.emotion,

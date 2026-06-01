@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 import {
   OpenAICompatibleEmotionAnalyzer,
@@ -21,6 +21,12 @@ type ChatMessage = {
   content: string;
 };
 
+type DemoEnvironment = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
 const CHAT_SYSTEM_PROMPT = [
   '你是月見八千代，一个会通过 Live2D 面部表情表达情绪的中文助手。',
   '请用自然中文回复用户，1 到 3 句即可。',
@@ -28,11 +34,19 @@ const CHAT_SYSTEM_PROMPT = [
   '根据上下文表现出害羞、惊讶、难过、慌张、调皮、开心等细微反应。',
 ].join('\n');
 
-export default defineConfig({
-  plugins: [llmAnalyzeApi()],
+export default defineConfig(({ mode }) => {
+  const fileEnv = loadEnv(mode, process.cwd(), 'LIVE2D_LLM_');
+  const environment: DemoEnvironment = {
+    apiKey: process.env.LIVE2D_LLM_API_KEY || fileEnv.LIVE2D_LLM_API_KEY || '',
+    baseUrl: process.env.LIVE2D_LLM_BASE_URL || fileEnv.LIVE2D_LLM_BASE_URL || 'https://api.openai.com/v1',
+    model: process.env.LIVE2D_LLM_MODEL || fileEnv.LIVE2D_LLM_MODEL || 'mimo-v2.5',
+  };
+  return {
+    plugins: [llmAnalyzeApi(environment)],
+  };
 });
 
-function llmAnalyzeApi(): Plugin {
+function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
   return {
     name: 'nature-live2d-llm-analyze-api',
     configureServer(server) {
@@ -47,9 +61,7 @@ function llmAnalyzeApi(): Plugin {
         }
 
         try {
-          const apiKey = process.env.LIVE2D_LLM_API_KEY || '';
-          const baseUrl = process.env.LIVE2D_LLM_BASE_URL || 'https://api.openai.com/v1';
-          const model = process.env.LIVE2D_LLM_MODEL || 'mimo-v2.5';
+          const { apiKey, baseUrl, model } = environment;
           if (!apiKey) throw new Error('LIVE2D_LLM_API_KEY is not set in the demo server environment');
 
           const body = JSON.parse(await readRequestBody(request)) as ChatStreamRequest;
@@ -88,9 +100,7 @@ function llmAnalyzeApi(): Plugin {
         }
 
         try {
-          const apiKey = process.env.LIVE2D_LLM_API_KEY || '';
-          const baseUrl = process.env.LIVE2D_LLM_BASE_URL || 'https://api.openai.com/v1';
-          const model = process.env.LIVE2D_LLM_MODEL || 'mimo-v2.5';
+          const { apiKey, baseUrl, model } = environment;
           if (!apiKey) throw new Error('LIVE2D_LLM_API_KEY is not set in the demo server environment');
 
           const body = JSON.parse(await readRequestBody(request)) as AnalyzeRequest;
@@ -122,9 +132,7 @@ function llmAnalyzeApi(): Plugin {
         }
 
         try {
-          const apiKey = process.env.LIVE2D_LLM_API_KEY || '';
-          const baseUrl = process.env.LIVE2D_LLM_BASE_URL || 'https://api.openai.com/v1';
-          const model = process.env.LIVE2D_LLM_MODEL || 'mimo-v2.5';
+          const { apiKey, baseUrl, model } = environment;
           if (!apiKey) throw new Error('LIVE2D_LLM_API_KEY is not set in the demo server environment');
 
           const body = JSON.parse(await readRequestBody(request)) as ChatStreamRequest;

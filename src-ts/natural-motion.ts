@@ -46,7 +46,7 @@ export function createNaturalMotionPlan(
   const maxKeyframes = Math.max(minKeyframes, Math.round(options.maxKeyframes ?? 36));
   const naturalCount = Math.floor(durationMs / frameIntervalMs) + 1;
   const keyframeCount = Math.round(clamp(naturalCount, minKeyframes, maxKeyframes));
-  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 2.6);
+  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 3.2);
   const liveliness = clamp((options.liveliness ?? 0.62) * (0.86 + expressiveness * 0.2), 0, 1);
   const fastReaction = isFastReaction(intent.emotion);
   const thinkingMs = options.thinkingMs ?? durationMs * (fastReaction ? 0.08 : 0.22);
@@ -91,6 +91,7 @@ function createStepIntent(
         eyes: target.eyes,
         brows: target.brows,
         mouth: target.mouth,
+        motionStyle: target.motionStyle,
         specialExpression: target.specialExpression,
       }
     : {};
@@ -251,7 +252,7 @@ export function applyNaturalParameterMotion(
 ): Record<string, number> {
   if (options.microMotion === false || step.phase === "neutral") return { ...params };
   const next = { ...params };
-  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 2.6);
+  const expressiveness = clamp(options.expressiveness ?? 1, 0.5, 3.2);
   const liveliness = clamp((options.liveliness ?? 0.62) * (0.86 + expressiveness * 0.2), 0, 1);
   const stability = clamp(options.stability ?? 0.82, 0, 1);
   const progress = plan.durationMs <= 0 ? 1 : step.t / plan.durationMs;
