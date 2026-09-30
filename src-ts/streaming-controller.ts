@@ -46,7 +46,10 @@ export class Live2DStreamingExpressionController {
   private analysisInFlight = false;
   private queuedTextAnalysis: QueuedTextAnalysis | null = null;
   private running = false;
+  private disposed = false;
   lastResult: ExpressionResult | null = null;
+  /** Latest analysis failure, including coalesced work without an awaiting caller. */
+  lastError: unknown = null;
 
   constructor(options: Live2DStreamingExpressionControllerOptions) {
     this.engine = options.engine;
@@ -63,6 +66,7 @@ export class Live2DStreamingExpressionController {
   }
 
   start(): void {
+    if (this.disposed) throw new Error("Streaming expression controller is disposed");
     if (this.running) return;
     this.running = true;
     this.lastFrameAt = this.now();
@@ -75,6 +79,15 @@ export class Live2DStreamingExpressionController {
     this.analyzeSerial += 1;
     if (this.frame !== null) this.cancelFrame(this.frame);
     this.frame = null;
+    // Stop deferred hooks from reapplying the last pose while paused.
+    this.applier.apply({});
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.stop();
+    this.applier.dispose();
+    this.disposed = true;
   }
 
   /**
@@ -84,6 +97,7 @@ export class Live2DStreamingExpressionController {
    * with pushIntent while the reply is streaming.
    */
   async pushText(text: string, options: Live2DStreamingPushOptions = {}): Promise<ExpressionResult | null> {
+    if (this.disposed) throw new Error("Streaming expression controller is disposed");
     const timestamp = this.now();
     if (!options.force && timestamp - this.lastUpdateAt < this.minUpdateMs) return null;
     this.lastUpdateAt = timestamp;
@@ -100,18 +114,33 @@ export class Live2DStreamingExpressionController {
     try {
       const intent = await this.analyzer.analyze(text);
       if (serial !== this.analyzeSerial) return null;
-      return this.pushIntent(intent);
+      const result = this.applyIntent(intent);
+      this.lastError = null;
+      return result;
+    } catch (error) {
+      if (serial === this.analyzeSerial) this.lastError = error;
+      throw error;
     } finally {
       this.analysisInFlight = false;
       const queued = this.queuedTextAnalysis;
       this.queuedTextAnalysis = null;
       if (queued) {
-        void this.pushText(queued.text, { force: true });
+        // Coalesced calls already resolved null; retain their error in lastError
+        // rather than creating an unhandled rejection with no awaiting caller.
+        void this.pushText(queued.text, { force: true }).catch(() => {});
       }
     }
   }
 
   pushIntent(intent: EmotionIntent): ExpressionResult {
+    // A host-supplied/final intent supersedes earlier asynchronous text work.
+    this.analyzeSerial += 1;
+    this.queuedTextAnalysis = null;
+    return this.applyIntent(intent);
+  }
+
+  private applyIntent(intent: EmotionIntent): ExpressionResult {
+    if (this.disposed) throw new Error("Streaming expression controller is disposed");
     const result = this.engine.generateFromIntent(intent);
     this.setTarget(result.params);
     this.lastResult = result;
