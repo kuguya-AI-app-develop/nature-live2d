@@ -51,6 +51,8 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
     name: 'nature-live2d-llm-analyze-api',
     configureServer(server) {
       server.middlewares.use('/api/chat-stream', async (request, response, next) => {
+        if ((request.method === 'POST' || request.method === 'OPTIONS')
+            && !validateDemoRequest(request, response)) return;
         if (request.method === 'OPTIONS') {
           writeJson(response, 204, {});
           return;
@@ -90,6 +92,8 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
       });
 
       server.middlewares.use('/api/analyze', async (request, response, next) => {
+        if ((request.method === 'POST' || request.method === 'OPTIONS')
+            && !validateDemoRequest(request, response)) return;
         if (request.method === 'OPTIONS') {
           writeJson(response, 204, {});
           return;
@@ -122,6 +126,8 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
       });
 
       server.middlewares.use('/api/emotion-stream', async (request, response, next) => {
+        if ((request.method === 'POST' || request.method === 'OPTIONS')
+            && !validateDemoRequest(request, response)) return;
         if (request.method === 'OPTIONS') {
           writeJson(response, 204, {});
           return;
@@ -161,6 +167,25 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
       });
     },
   };
+}
+
+function validateDemoRequest(request: IncomingMessage, response: ServerResponse): boolean {
+  // These routes use a server-side credential and are only for the loopback demo.
+  // Check before parsing a body or constructing any upstream model request.
+  const host = request.headers.host;
+  const protocol = 'encrypted' in request.socket && request.socket.encrypted ? 'https' : 'http';
+  const origin = request.headers.origin;
+  if (!host || !/^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?$/i.test(host)
+      || (origin !== undefined && origin !== `${protocol}://${host.toLowerCase()}`)) {
+    writeJson(response, 403, { ok: false, error: 'Only same-origin loopback demo requests are allowed' });
+    return false;
+  }
+  if (request.method === 'POST'
+      && request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    writeJson(response, 415, { ok: false, error: 'Content-Type must be application/json' });
+    return false;
+  }
+  return true;
 }
 
 async function streamChatCompletion(options: {

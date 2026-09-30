@@ -388,7 +388,7 @@ const resources = await scanLive2DResources("yachiyo");
 
 ## Web Demo
 
-Run a local browser demo that renders the bundled Yachiyo model through `pixi-live2d-display` and drives it with this package. The demo calls OpenAI-compatible endpoints through local Vite middleware. The browser never receives the API key; `/api/chat-stream` proxies the assistant reply stream and `/api/emotion-stream` proxies streamed semantic emotion events. For a long-running local demo, copy `.env.example` to the ignored `.env.local` file and fill in the local values once:
+Run a local browser demo that renders the bundled Yachiyo model through `pixi-live2d-display` and drives it with this package. The demo calls OpenAI-compatible endpoints through local Vite middleware. The demo API accepts only same-origin loopback requests with `Content-Type: application/json`. Local command-line JSON clients may omit `Origin`; non-loopback Host values and unrelated/opaque origins are rejected before upstream calls. This is a local development demo, not a remotely exposed authenticated service. The browser never receives the API key; `/api/chat-stream` proxies the assistant reply stream and `/api/emotion-stream` proxies streamed semantic emotion events. For a long-running local demo, copy `.env.example` to the ignored `.env.local` file and fill in the local values once:
 
 ```bash
 npm run demo:web
