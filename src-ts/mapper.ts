@@ -69,6 +69,14 @@ export function clampParams(
       continue;
     }
     let next = Number(value);
+    if (!Number.isFinite(next)) {
+      warnings.push(`removed non-finite parameter: ${id}`);
+      continue;
+    }
+    if (!Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min > range.max) {
+      warnings.push(`removed parameter with invalid range: ${id}`);
+      continue;
+    }
     if (next < range.min) {
       warnings.push(`clamped ${id} from ${next} to ${range.min}`);
       next = range.min;

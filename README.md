@@ -400,6 +400,17 @@ Open:
 http://127.0.0.1:5175/demo/
 ```
 
+## Input safety
+
+Intensity and duration must be finite numbers. Finite intensity values are clamped
+to `[0, 1]`, and duration is kept positive. Non-finite parameter values or invalid
+parameter ranges are omitted with warnings. Invalid HTTP input returns JSON with
+status 422.
+
+An explicit `special_expression="none"` (Python) or `specialExpression: "none"`
+(TypeScript) disables the automatic special-expression layer. Omit the field or
+use `null` to keep emotion-based selection.
+
 ## Development
 
 ```bash

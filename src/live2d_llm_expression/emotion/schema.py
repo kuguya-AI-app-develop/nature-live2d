@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from pydantic import BaseModel, field_validator
@@ -42,6 +43,8 @@ class EmotionIntent(BaseModel):
     @field_validator("intensity")
     @classmethod
     def clamp_intensity(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("intensity must be a finite number")
         return max(0.0, min(1.0, float(value)))
 
     @field_validator("duration_ms")
