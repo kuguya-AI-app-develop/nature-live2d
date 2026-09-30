@@ -62,3 +62,15 @@ def test_rule_mapper_clamps_intensity_in_schema():
 
     assert params["ParamMouthForm"] == pytest.approx(0.65)
 
+
+
+@pytest.mark.parametrize('emotion', ['crying', 'panic', 'happy'])
+def test_explicit_none_disables_automatic_special_expressions(emotion):
+    intent = EmotionIntent(emotion=emotion, intensity=1, eyes='closed_smile', special_expression='none')
+    params = RuleBasedExpressionMapper().map_intent(intent)
+    assert all(params[f'ParamExpression_{index}'] == 0 for index in range(1, 5))
+
+
+def test_omitted_special_expression_still_derives_tears():
+    params = RuleBasedExpressionMapper().map_intent(EmotionIntent(emotion='crying', intensity=1))
+    assert params['ParamExpression_1'] == 1

@@ -4,25 +4,16 @@ import argparse
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from live2d_llm_expression.emotion.schema import (
-    EmotionName,
-    SpecialExpressionName,
-)
+from live2d_llm_expression.emotion.schema import EmotionIntent
 from live2d_llm_expression.engine import Live2DExpressionEngine
 
 
-class EmotionRequest(BaseModel):
-    emotion: EmotionName
-    intensity: float = 0.5
-    gaze: str | None = None
-    head: str | None = None
-    eyes: str | None = None
-    brows: str | None = None
-    mouth: str | None = None
-    special_expression: SpecialExpressionName | None = None
-    duration_ms: int = 1200
+class EmotionRequest(EmotionIntent):
+    pass
 
 
 class TextRequest(BaseModel):
@@ -41,6 +32,15 @@ def create_app(
     )
     app = FastAPI(title="Live2D LLM Expression", version="0.1.0")
     app.state.engine = engine
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_request, error: RequestValidationError):
+        # Non-finite JSON numbers must not make the validation response itself
+        # fail JSON serialization. Only expose the useful, JSON-safe metadata.
+        return JSONResponse(status_code=422, content={"detail": [
+            {key: item[key] for key in ("loc", "msg", "type")}
+            for item in error.errors()
+        ]})
 
     @app.get("/health")
     def health() -> dict[str, str]:
