@@ -36,3 +36,21 @@ def test_safety_clamp_keeps_expression_fallback_ranges(yachiyo_dir):
     assert params["ParamExpression_1"] == pytest.approx(1.0)
     assert warnings
 
+
+
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), float('-inf')])
+def test_safety_clamp_removes_non_finite_params(yachiyo_dir, value):
+    profile = build_character_profile(scan_live2d_resources(yachiyo_dir))
+    params, warnings = clamp_params({'ParamAngleX': value, 'ParamAngleY': 0}, profile)
+    assert params == {'ParamAngleY': 0}
+    assert warnings == ['removed non-finite parameter: ParamAngleX']
+
+
+@pytest.mark.parametrize('lower,upper', [(float('nan'), 1), (0, float('inf')), (1, -1)])
+def test_safety_clamp_rejects_invalid_ranges(yachiyo_dir, lower, upper):
+    profile = build_character_profile(scan_live2d_resources(yachiyo_dir))
+    profile.parameters['ParamAngleX'].range.min = lower
+    profile.parameters['ParamAngleX'].range.max = upper
+    params, warnings = clamp_params({'ParamAngleX': 0}, profile)
+    assert params == {}
+    assert warnings == ['removed parameter with invalid range: ParamAngleX']

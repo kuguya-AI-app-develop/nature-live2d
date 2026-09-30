@@ -68,7 +68,7 @@ EXPRESSION_LAYER_PRESETS: dict[str, dict[str, float]] = {
 
 
 def resolve_special_expression(intent: EmotionIntent) -> SpecialExpressionName:
-    if intent.special_expression and intent.special_expression != "none":
+    if intent.special_expression is not None:
         return intent.special_expression
     if intent.emotion == "crying" and intent.intensity >= 0.5:
         return "tears"

@@ -74,7 +74,14 @@ export function applyParamsToLive2DModel(
   weightOrOptions: number | Live2DApplyOptions = 1,
 ): void {
   const options = typeof weightOrOptions === "number" ? { weight: weightOrOptions } : weightOrOptions;
-  createLive2DParameterApplier(model, options).apply(params, options.weight);
+  let applier: Live2DParameterApplier | undefined;
+  applier = createLive2DParameterApplier(model, options.applyTiming === "before-model-update"
+    ? { ...options, onBeforeModelUpdate: (flush) => bindBeforeModelUpdate(model, options, () => {
+        if (!applier) return;
+        try { flush(); } finally { applier.dispose(); }
+      }) }
+    : options);
+  applier.apply(params, options.weight);
 }
 
 export function createLive2DParameterApplier(
@@ -177,6 +184,7 @@ export function playTimelineOnLive2DModel(
     stop: () => {
       stopped = true;
       if (handle !== null) cancelFrame(handle);
+      applier.dispose();
     },
   };
 }

@@ -400,6 +400,28 @@ Open:
 http://127.0.0.1:5175/demo/
 ```
 
+## Async lifecycle
+
+An explicit streaming `pushIntent`/`pushEmotion` supersedes older pending text
+analysis. Coalesced text failures are retained in `controller.lastError`; a later
+successful analysis clears it. Direct awaited analysis failures still reject.
+Use `stop()` to pause a streaming controller and `dispose()` when replacing it
+to remove model-update hooks permanently. Timeline playback `stop()` also
+removes its hooks; the one-shot parameter helper applies once at the next model
+update when deferred timing is selected. Breaking out of an emotion stream
+cancels its response body.
+
+## Input safety
+
+Intensity and duration must be finite numbers. Finite intensity values are clamped
+to `[0, 1]`, and duration is kept positive. Non-finite parameter values or invalid
+parameter ranges are omitted with warnings. Invalid HTTP input returns JSON with
+status 422.
+
+An explicit `special_expression="none"` (Python) or `specialExpression: "none"`
+(TypeScript) disables the automatic special-expression layer. Omit the field or
+use `null` to keep emotion-based selection.
+
 ## Development
 
 ```bash

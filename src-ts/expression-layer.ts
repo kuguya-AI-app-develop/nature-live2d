@@ -61,7 +61,7 @@ export const EXPRESSION_LAYER_PRESETS: Record<string, Record<string, number>> = 
 };
 
 export function resolveSpecialExpression(intent: NormalizedEmotionIntent): SpecialExpressionName {
-  if (intent.specialExpression && intent.specialExpression !== "none") {
+  if (intent.specialExpression != null) {
     return intent.specialExpression;
   }
   if (intent.emotion === "crying" && intent.intensity >= 0.5) return "tears";

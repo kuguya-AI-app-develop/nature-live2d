@@ -397,11 +397,12 @@ export class OpenAICompatibleEmotionAnalyzer implements EmotionAnalyzer, Emotion
     let contentBuffer = "";
     let rawContent = "";
     const pending: OpenAICompatibleEmotionStreamEvent[] = [];
+    let completed = false;
 
     try {
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) { completed = true; break; }
         sseBuffer += decoder.decode(value, { stream: true });
         sseBuffer = consumeOpenAISseLines(sseBuffer, (payload) => {
           if (payload === "[DONE]") return;
@@ -423,6 +424,11 @@ export class OpenAICompatibleEmotionAnalyzer implements EmotionAnalyzer, Emotion
         }
       }
     } finally {
+      // Breaking out of the async iterator must close the still-running HTTP
+      // body, not merely unlock it while the provider continues streaming.
+      if (!completed) {
+        try { await reader.cancel(); } catch { /* Preserve the original stream error. */ }
+      }
       reader.releaseLock();
     }
 

@@ -1,6 +1,7 @@
 import pytest
 
 from live2d_llm_expression.llm import LLMAnalyzerError, OpenAICompatibleAnalyzer
+from live2d_llm_expression.llm.analyzer import MockEmotionAnalyzer
 
 
 def test_openai_compatible_analyzer_parses_json_response():
@@ -102,3 +103,9 @@ def test_openai_compatible_analyzer_from_env(monkeypatch, tmp_path):
     assert analyzer.model == "env-model"
     assert analyzer.base_url == "https://env.example/v1"
 
+
+
+def test_mock_distinguishes_chinese_confusion_from_sleepiness():
+    analyzer = MockEmotionAnalyzer()
+    assert analyzer.analyze('我很困惑').emotion == 'confused'
+    assert analyzer.analyze('我很困，想睡觉').emotion == 'sleepy'

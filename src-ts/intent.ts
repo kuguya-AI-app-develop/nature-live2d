@@ -87,12 +87,17 @@ export function normalizeIntent(intent: EmotionIntent): NormalizedEmotionIntent 
   if (motionStyle && !MOTION_STYLES.has(motionStyle)) {
     throw new Error(`Unsupported motion performance style: ${motionStyle}`);
   }
+  const intensity = Number(intent.intensity ?? 0.5);
+  const durationMs = Number(intent.durationMs ?? 1200);
+  if (!Number.isFinite(intensity) || !Number.isFinite(durationMs)) {
+    throw new Error("Intensity and duration must be finite numbers");
+  }
   return {
     emotion: intent.emotion,
     tone,
     presetId: intent.presetId ?? null,
     presetLabel: intent.presetLabel ?? null,
-    intensity: clamp(Number(intent.intensity ?? 0.5), 0, 1),
+    intensity: clamp(intensity, 0, 1),
     gaze: intent.gaze ?? null,
     head: intent.head ?? null,
     eyes: intent.eyes ?? null,
@@ -101,7 +106,7 @@ export function normalizeIntent(intent: EmotionIntent): NormalizedEmotionIntent 
     facialStyle,
     motionStyle,
     specialExpression: intent.specialExpression ?? null,
-    durationMs: Math.max(1, Math.round(Number(intent.durationMs ?? 1200))),
+    durationMs: Math.max(1, Math.round(durationMs)),
   };
 }
 
