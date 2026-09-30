@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from live2d_llm_expression.profile.model_profile import CharacterProfile
 
 
@@ -23,6 +25,14 @@ def clamp_params(
             continue
 
         next_value = float(value)
+        if not math.isfinite(next_value):
+            warnings.append(f"removed non-finite parameter: {parameter_id}")
+            continue
+        if (not math.isfinite(parameter_range.min)
+                or not math.isfinite(parameter_range.max)
+                or parameter_range.min > parameter_range.max):
+            warnings.append(f"removed parameter with invalid range: {parameter_id}")
+            continue
         if next_value < parameter_range.min:
             warnings.append(
                 f"clamped {parameter_id} from {next_value} to {parameter_range.min}"

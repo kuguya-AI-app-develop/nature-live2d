@@ -141,14 +141,14 @@ class MockEmotionAnalyzer:
             return EmotionIntent(emotion="sad", intensity=0.7)
         if _contains_any(normalized, ("吓", "惊", "surprise")):
             return EmotionIntent(emotion="surprised", intensity=0.75)
+        if _contains_any(normalized, ("困惑", "疑惑", "confused")):
+            return EmotionIntent(emotion="confused", intensity=0.65)
         if _contains_any(normalized, ("困", "睡", "sleepy")):
             return EmotionIntent(emotion="sleepy", intensity=0.7)
         if _contains_any(normalized, ("慌", "panic")):
             return EmotionIntent(emotion="panic", intensity=0.8)
         if _contains_any(normalized, ("调皮", "戏弄", "teasing")):
             return EmotionIntent(emotion="teasing", intensity=0.65)
-        if _contains_any(normalized, ("困惑", "疑惑", "confused")):
-            return EmotionIntent(emotion="confused", intensity=0.65)
 
         return EmotionIntent(emotion="neutral", intensity=0.5)
 

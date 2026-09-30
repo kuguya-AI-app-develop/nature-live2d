@@ -62,3 +62,13 @@ def test_server_rejects_invalid_emotion(client):
     response = client.post("/emotion", json={"emotion": "invalid", "intensity": 0.7})
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize('token', ['NaN', 'Infinity', '-Infinity', '1e309'])
+@pytest.mark.parametrize('field', ['intensity', 'duration_ms'])
+def test_server_rejects_non_finite_numbers_with_serializable_error(client, token, field):
+    response = client.post('/emotion', content='{"emotion":"happy","' + field + '":' + token + '}',
+                           headers={'Content-Type': 'application/json'})
+    assert response.status_code == 422
+    assert response.json()['detail']
+    assert client.post('/emotion', json={'emotion': 'happy'}).status_code == 200
