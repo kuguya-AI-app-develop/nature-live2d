@@ -24,6 +24,20 @@ describe('async lifecycle ownership', () => {
     controller.stop();
   });
 
+  it('does not invalidate pending valid analysis when an explicit intent is rejected', async () => {
+    let finish!: (intent: EmotionIntent) => void;
+    const controller = new Live2DStreamingExpressionController({
+      engine, analyzer: {analyze: () => new Promise(resolve => { finish = resolve; })},
+      model: {setParameterValueById() {}}, requestFrame: () => 1, cancelFrame() {},
+    });
+    const pending = controller.pushText('valid text', {force: true});
+    expect(() => controller.pushIntent({emotion: 'happy', intensity: NaN})).toThrow(/finite/);
+    finish({emotion: 'shy'});
+    expect((await pending)?.emotion).toBe('shy');
+    expect(controller.lastResult?.emotion).toBe('shy');
+    controller.dispose();
+  });
+
   it('detaches deferred model hooks when timeline playback is stopped', () => {
     const emitter = new EventEmitter();
     const setter = vi.fn();

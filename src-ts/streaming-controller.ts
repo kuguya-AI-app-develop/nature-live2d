@@ -133,10 +133,12 @@ export class Live2DStreamingExpressionController {
   }
 
   pushIntent(intent: EmotionIntent): ExpressionResult {
+    // Validate/apply first: a rejected input must not cancel valid pending work.
+    const result = this.applyIntent(intent);
     // A host-supplied/final intent supersedes earlier asynchronous text work.
     this.analyzeSerial += 1;
     this.queuedTextAnalysis = null;
-    return this.applyIntent(intent);
+    return result;
   }
 
   private applyIntent(intent: EmotionIntent): ExpressionResult {
