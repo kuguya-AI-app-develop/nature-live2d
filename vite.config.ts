@@ -76,6 +76,7 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
             response,
           });
         } catch (error) {
+          if (response.destroyed) return;
           if (response.headersSent) {
             writeSseEvent(response, {
               type: 'error',
@@ -118,6 +119,7 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
             summary: intent.summary || '',
           });
         } catch (error) {
+          if (response.destroyed) return;
           writeJson(response, 500, {
             ok: false,
             error: error instanceof Error ? error.message : String(error || 'unknown error'),
@@ -151,6 +153,7 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
             response,
           });
         } catch (error) {
+          if (response.destroyed) return;
           if (response.headersSent) {
             writeSseEvent(response, {
               type: 'error',
@@ -198,8 +201,7 @@ async function streamChatCompletion(options: {
 }): Promise<void> {
   if (!options.messages.length) throw new Error('At least one user message is required');
 
-  const abortController = new AbortController();
-  options.request.on('close', () => abortController.abort());
+  const signal = abortOnClientDisconnect(options.request, options.response);
 
   const upstream = await fetch(`${options.baseUrl.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
@@ -217,7 +219,7 @@ async function streamChatCompletion(options: {
         ...options.messages,
       ],
     }),
-    signal: abortController.signal,
+    signal,
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -230,11 +232,12 @@ async function streamChatCompletion(options: {
   const decoder = new TextDecoder();
   let buffer = '';
   let doneSent = false;
+  let completed = false;
 
   try {
     while (true) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) { completed = true; break; }
       buffer += decoder.decode(value, { stream: true });
       buffer = consumeOpenAISseLines(buffer, (payload) => {
         if (payload === '[DONE]') {
@@ -248,6 +251,9 @@ async function streamChatCompletion(options: {
       });
     }
   } finally {
+    if (!completed) {
+      try { await reader.cancel(); } catch { /* Preserve the stream failure. */ }
+    }
     reader.releaseLock();
   }
 
@@ -265,12 +271,14 @@ async function streamEmotionIntents(options: {
 }): Promise<void> {
   if (!options.messages.length) throw new Error('At least one user message is required');
 
+  const signal = abortOnClientDisconnect(options.request, options.response);
   const analyzer = new OpenAICompatibleEmotionAnalyzer({
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     model: options.model,
     temperature: 0.15,
     maxTokens: 260,
+    fetcher: (input, init) => fetch(input, { ...init, signal }),
   });
 
   writeSseHeaders(options.response);
@@ -286,6 +294,20 @@ async function streamEmotionIntents(options: {
   }
   writeSseEvent(options.response, { type: 'done' });
   options.response.end();
+}
+
+function abortOnClientDisconnect(request: IncomingMessage, response: ServerResponse): AbortSignal {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  // IncomingMessage.close also occurs after a normally received POST body.
+  // A streamed reply instead belongs to the outgoing response connection.
+  request.once('aborted', abort);
+  response.once('close', () => {
+    request.off('aborted', abort);
+    if (!response.writableFinished) abort();
+  });
+  if (request.aborted || response.destroyed) abort();
+  return controller.signal;
 }
 
 function normalizeChatMessages(messages: ChatStreamRequest['messages']): ChatMessage[] {
