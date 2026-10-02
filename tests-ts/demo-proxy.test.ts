@@ -36,7 +36,14 @@ async function fixture(holdStreamOpen = false) {
         }
       } else {
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({choices:[{message:{content:'{"emotion":"happy"}'}}]}));
+        const result = JSON.stringify({choices:[{message:{content:'{"emotion":"happy"}'}}]});
+        if (holdStreamOpen) {
+          const timeout = setTimeout(() => res.end(result), 2000);
+          res.on('close', () => {
+            clearTimeout(timeout);
+            if (!res.writableFinished) cancelledUpstream++;
+          });
+        } else res.end(result);
       }
     });
   }));
@@ -63,6 +70,19 @@ async function fixture(holdStreamOpen = false) {
   }
   return {local, send, calls: () => upstreamCalls, cancelled: () => cancelledUpstream};
 }
+
+it('/api/analyze cancels an unfinished upstream request when the client disconnects', async () => {
+  const app = await fixture(true);
+  const body = JSON.stringify({text:'synthetic disconnect fixture'});
+  const client = request(`${app.local}/api/analyze`, {method:'POST', headers:{
+    'Content-Type':'application/json', 'Content-Length':Buffer.byteLength(body),
+  }});
+  client.on('error', () => {});
+  client.end(body);
+  await vi.waitFor(() => expect(app.calls()).toBe(1), {timeout:1000});
+  client.destroy();
+  await vi.waitFor(() => expect(app.cancelled()).toBe(1), {timeout:1000});
+});
 
 for (const route of ['/api/chat-stream', '/api/emotion-stream']) {
   it(`${route} cancels the upstream body when the response client disconnects`, async () => {

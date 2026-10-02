@@ -110,7 +110,11 @@ function llmAnalyzeApi(environment: DemoEnvironment): Plugin {
 
           const body = JSON.parse(await readRequestBody(request)) as AnalyzeRequest;
           const text = formatAnalyzeText(body);
-          const analyzer = new OpenAICompatibleEmotionAnalyzer({ baseUrl, apiKey, model });
+          const signal = abortOnClientDisconnect(request, response);
+          const analyzer = new OpenAICompatibleEmotionAnalyzer({
+            baseUrl, apiKey, model,
+            fetcher: (input, init) => fetch(input, { ...init, signal }),
+          });
           const intent = await analyzer.analyze(text);
           writeJson(response, 200, {
             ok: true,
