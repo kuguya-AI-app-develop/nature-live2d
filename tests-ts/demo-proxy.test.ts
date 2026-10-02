@@ -12,8 +12,9 @@ async function listen(server: Server) {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   return `http://127.0.0.1:${(server.address() as {port: number}).port}`;
 }
-async function fixture() {
+async function fixture(holdStreamOpen = false) {
   let upstreamCalls = 0;
+  let cancelledUpstream = 0;
   const upstream = await listen(createServer((req, res) => {
     upstreamCalls++;
     let body = '';
@@ -22,10 +23,27 @@ async function fixture() {
       const payload = JSON.parse(body);
       if (payload.stream) {
         res.setHeader('Content-Type', 'text/event-stream');
-        res.end(`data: ${JSON.stringify({choices:[{delta:{content:'{"emotion":"happy"}'}}]})}\n\ndata: [DONE]\n\n`);
+        const event = `data: ${JSON.stringify({choices:[{delta:{content:'{"emotion":"happy"}\n'}}]})}\n\n`;
+        if (holdStreamOpen) {
+          res.write(event);
+          const timeout = setTimeout(() => res.end('data: [DONE]\n\n'), 2000);
+          res.on('close', () => {
+            clearTimeout(timeout);
+            if (!res.writableFinished) cancelledUpstream++;
+          });
+        } else {
+          res.end(event + 'data: [DONE]\n\n');
+        }
       } else {
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({choices:[{message:{content:'{"emotion":"happy"}'}}]}));
+        const result = JSON.stringify({choices:[{message:{content:'{"emotion":"happy"}'}}]});
+        if (holdStreamOpen) {
+          const timeout = setTimeout(() => res.end(result), 2000);
+          res.on('close', () => {
+            clearTimeout(timeout);
+            if (!res.writableFinished) cancelledUpstream++;
+          });
+        } else res.end(result);
       }
     });
   }));
@@ -50,7 +68,38 @@ async function fixture() {
       req.on('error', reject); req.end(body);
     });
   }
-  return {local, send, calls: () => upstreamCalls};
+  return {local, send, calls: () => upstreamCalls, cancelled: () => cancelledUpstream};
+}
+
+it('/api/analyze cancels an unfinished upstream request when the client disconnects', async () => {
+  const app = await fixture(true);
+  const body = JSON.stringify({text:'synthetic disconnect fixture'});
+  const client = request(`${app.local}/api/analyze`, {method:'POST', headers:{
+    'Content-Type':'application/json', 'Content-Length':Buffer.byteLength(body),
+  }});
+  client.on('error', () => {});
+  client.end(body);
+  await vi.waitFor(() => expect(app.calls()).toBe(1), {timeout:1000});
+  client.destroy();
+  await vi.waitFor(() => expect(app.cancelled()).toBe(1), {timeout:1000});
+});
+
+for (const route of ['/api/chat-stream', '/api/emotion-stream']) {
+  it(`${route} cancels the upstream body when the response client disconnects`, async () => {
+    const app = await fixture(true);
+    const body = JSON.stringify({messages:[{role:'user',content:'synthetic disconnect fixture'}]});
+    await new Promise<void>((resolve, reject) => {
+      const client = request(`${app.local}${route}`, {method:'POST', headers:{
+        'Content-Type':'application/json', 'Content-Length':Buffer.byteLength(body),
+      }}, response => {
+        response.once('data', () => { response.destroy(); client.destroy(); resolve(); });
+        response.on('error', () => {});
+      });
+      client.on('error', reject);
+      client.end(body);
+    });
+    await vi.waitFor(() => expect(app.cancelled()).toBe(1), {timeout:1000});
+  });
 }
 
 for (const route of ['/api/analyze', '/api/chat-stream', '/api/emotion-stream']) {

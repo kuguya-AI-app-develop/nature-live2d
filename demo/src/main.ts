@@ -119,6 +119,7 @@ let stopPlayback: (() => void) | null = null;
 let realtimeDirector: Live2DRealtimeMotionDirector | null = null;
 let realtimeConfigKey = '';
 let playbackSerial = 0;
+let turnAbortController = new AbortController();
 let chatHistory: ConversationMessage[] = [];
 let nextTickerFrameId = 1;
 const tickerFrames = new Map<number, () => void>();
@@ -222,6 +223,8 @@ async function submitChatMessage(): Promise<void> {
 
 async function runAssistantTurn(messages: ConversationMessage[]): Promise<void> {
   const runId = ++playbackSerial;
+  turnAbortController.abort();
+  turnAbortController = new AbortController();
   setBusy(true);
   setStatus('Starting stream');
   assistantReplyOutput.textContent = '';
@@ -335,9 +338,11 @@ function createDemoSemanticAnalyzer(): EmotionAnalyzer & EmotionStreamAnalyzer {
       return softenRealtimeSemanticIntent(data.intent);
     },
     async *stream(text) {
+      // Keep the originating turn's signal, including for the fallback request.
+      const signal = turnAbortController.signal;
       const messages = parseMessagesFromText(text);
       let emitted = false;
-      for await (const event of streamEmotionIntents(chatMessagesForLlm(messages))) {
+      for await (const event of streamEmotionIntents(chatMessagesForLlm(messages), signal)) {
         if (event.type === 'intent') {
           emitted = true;
           yield { intent: softenStreamIntent(event.intent), summary: event.summary || event.intent.summary || '' };
@@ -345,7 +350,7 @@ function createDemoSemanticAnalyzer(): EmotionAnalyzer & EmotionStreamAnalyzer {
         if (event.type === 'error') throw new Error(event.error);
       }
       if (!emitted) {
-        const data = await analyzeWithLlm(messages, text);
+        const data = await analyzeWithLlm(messages, text, signal);
         if (data.intent) yield { intent: softenRealtimeSemanticIntent(data.intent), summary: data.summary || '' };
       }
     },
@@ -362,6 +367,7 @@ function stopRealtimeDirector(): void {
 
 function clearConversation(): void {
   playbackSerial += 1;
+  turnAbortController.abort();
   stopRealtimeDirector();
   stopPlayback?.();
   stopPlayback = null;
@@ -488,6 +494,7 @@ function playEmotion(emotion: 'happy' | 'shy'): void {
 
 function playLayeredEmotion(intent: EmotionIntent): void {
   playbackSerial += 1;
+  turnAbortController.abort();
   stopRealtimeDirector();
   setBusy(false);
   const toneDuration = intent.tone === 'reassuring' ? selectedDurationMs() + 300 : selectedDurationMs();
@@ -556,12 +563,13 @@ function softenRealtimeSemanticIntent(intent: EmotionIntent & { summary?: string
 async function analyzeWithLlm(
   messages: ConversationMessage[] = chatHistory,
   text = formatMessages(chatHistory),
+  signal: AbortSignal = turnAbortController.signal,
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, text }),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(45_000)]),
   });
   const data = await response.json() as AnalyzeResponse;
   if (!response.ok || data.ok === false) {
@@ -570,7 +578,10 @@ async function analyzeWithLlm(
   return data;
 }
 
-async function* streamAssistantReply(messages: ConversationMessage[]): AsyncGenerator<ChatStreamEvent> {
+async function* streamAssistantReply(
+  messages: ConversationMessage[],
+  signal: AbortSignal = turnAbortController.signal,
+): AsyncGenerator<ChatStreamEvent> {
   const abortController = new AbortController();
   const timeout = window.setTimeout(() => abortController.abort(), 120_000);
   try {
@@ -578,7 +589,7 @@ async function* streamAssistantReply(messages: ConversationMessage[]): AsyncGene
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages }),
-      signal: abortController.signal,
+      signal: AbortSignal.any([signal, abortController.signal]),
     });
     if (!response.ok || !response.body) {
       throw new Error(await readErrorResponse(response));
@@ -600,6 +611,7 @@ async function* streamAssistantReply(messages: ConversationMessage[]): AsyncGene
       reader.releaseLock();
     }
   } finally {
+    abortController.abort();
     window.clearTimeout(timeout);
   }
 }
@@ -626,7 +638,10 @@ async function streamEmotionPlan(
   }
 }
 
-async function* streamEmotionIntents(messages: ConversationMessage[]): AsyncGenerator<EmotionStreamEvent> {
+async function* streamEmotionIntents(
+  messages: ConversationMessage[],
+  signal: AbortSignal = turnAbortController.signal,
+): AsyncGenerator<EmotionStreamEvent> {
   const abortController = new AbortController();
   const timeout = window.setTimeout(() => abortController.abort(), 90_000);
   try {
@@ -634,7 +649,7 @@ async function* streamEmotionIntents(messages: ConversationMessage[]): AsyncGene
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages }),
-      signal: abortController.signal,
+      signal: AbortSignal.any([signal, abortController.signal]),
     });
     if (!response.ok || !response.body) {
       throw new Error(await readErrorResponse(response));
@@ -656,6 +671,7 @@ async function* streamEmotionIntents(messages: ConversationMessage[]): AsyncGene
       reader.releaseLock();
     }
   } finally {
+    abortController.abort();
     window.clearTimeout(timeout);
   }
 }
@@ -739,7 +755,7 @@ function cancelPixiFrame(handle: number): void {
 
 function setBusy(value: boolean): void {
   document.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
-    button.disabled = value;
+    button.disabled = value && button.id !== 'clear-chat';
   });
   chatInput.disabled = value;
 }
